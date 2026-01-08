@@ -171,6 +171,10 @@ export const Settings: React.FC = () => {
     e.preventDefault();
     if (!partyName) return;
 
+    // Use lower-case normalized type if standard, otherwise keep as is
+    const standardTypes = ['vendor', 'customer', 'employee', 'other'];
+    const finalType = standardTypes.includes(partyType.toLowerCase()) ? partyType.toLowerCase() : partyType;
+
     if (editingPartyId) {
         // UPDATE LOGIC
         const existingParty = state.parties.find(p => p.id === editingPartyId);
@@ -179,7 +183,7 @@ export const Settings: React.FC = () => {
         const updatedParty: Party = {
             ...existingParty,
             name: partyName,
-            type: partyType,
+            type: finalType,
             phone: partyPhone,
             email: partyEmail
         };
@@ -220,7 +224,7 @@ export const Settings: React.FC = () => {
     const newParty: Party = {
         id: Math.random().toString(36).substr(2, 9),
         name: partyName,
-        type: partyType,
+        type: finalType,
         phone: partyPhone,
         email: partyEmail,
         linkedAccountId: partyAccountId
@@ -463,12 +467,25 @@ export const Settings: React.FC = () => {
                       </div>
                       <div>
                           <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Type</label>
-                          <select className="w-full px-4 py-2 bg-gray-950 text-white border border-gray-700 rounded-lg outline-none focus:border-primary" value={partyType} onChange={e => setPartyType(e.target.value as PartyType)}>
-                              <option value="vendor">Vendor (Supplier)</option>
-                              <option value="customer">Customer (Client)</option>
-                              <option value="employee">Employee</option>
-                              <option value="other">Other</option>
-                          </select>
+                          <div className="relative">
+                            <input 
+                                list="partyTypes"
+                                className="w-full px-4 py-2 bg-gray-950 text-white border border-gray-700 rounded-lg outline-none focus:border-primary placeholder-gray-600" 
+                                value={partyType} 
+                                onChange={e => setPartyType(e.target.value)}
+                                placeholder="Select or type custom..." 
+                                required
+                            />
+                            <datalist id="partyTypes">
+                                <option value="vendor">Vendor (Supplier)</option>
+                                <option value="customer">Customer (Client)</option>
+                                <option value="employee">Employee</option>
+                                <option value="other">Other</option>
+                            </datalist>
+                             <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                                <ChevronDown size={14} className="text-gray-500" />
+                             </div>
+                          </div>
                       </div>
                       <div>
                           <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Phone</label>

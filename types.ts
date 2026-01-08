@@ -19,8 +19,8 @@ export type AccountLevel = 'class' | 'group' | 'gl' | 'sub_ledger';
 // Normal Balance
 export type NormalBalance = 'debit' | 'credit';
 
-// Combined Party Type
-export type PartyType = 'customer' | 'vendor' | 'employee' | 'other';
+// Combined Party Type (Changed to string to allow custom types)
+export type PartyType = string;
 
 export interface Account {
   id: string;

@@ -72,9 +72,14 @@ export const ApAr: React.FC = () => {
 
   // --- HELPERS ---
 
-  const getPartyOptions = (mode: Mode) => {
-    const type = mode === 'receivable' ? 'customer' : 'vendor';
-    return state.parties.filter(p => p.type === type).map(p => ({ id: p.id, label: p.name }));
+  const getPartyOptions = () => {
+    // Show ALL parties to allow flexibility (Requirement 2)
+    // Add subLabel to distinguish types
+    return state.parties.map(p => ({ 
+        id: p.id, 
+        label: p.name,
+        subLabel: p.type.charAt(0).toUpperCase() + p.type.slice(1) // Capitalize type
+    }));
   };
 
   const getAccountOptions = (mode: Mode, subMode: SubMode) => {
@@ -491,7 +496,7 @@ export const ApAr: React.FC = () => {
             <form onSubmit={handleSave} className="space-y-4">
                 <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Entity</label>
-                    <SearchableSelect options={getPartyOptions(formMode)} value={partyId} onChange={setPartyId} required placeholder="Select Name..." />
+                    <SearchableSelect options={getPartyOptions()} value={partyId} onChange={setPartyId} required placeholder="Select Name..." />
                 </div>
                 <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">{formMode === 'receivable' ? 'Revenue / Source Account' : 'Expense / Asset Account'}</label>

@@ -6,6 +6,7 @@ import { useFinance } from '../context/FinanceContext';
 import { usePWA } from '../context/PWAContext';
 import { Modal } from '../components/ui/Modal';
 import { GoogleGenAI } from "@google/genai";
+import { Logo } from '../components/ui/Logo';
 
 interface LoginProps {
   onLogin: () => void;
@@ -45,9 +46,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setParticles(newParticles);
 
     // Attempt to generate a unique AI background
-    // Note: This relies on process.env.API_KEY being available. 
-    // In a real production login, you might serve a static asset to avoid API costs on public pages,
-    // but here we implement the requested feature.
     const generateBackground = async () => {
         const key = process.env.API_KEY;
         if (!key) return; // Fallback to Unsplash
@@ -80,7 +78,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         }
     };
 
-    // Uncomment to enable AI generation on every load (Consumes Quota)
     // generateBackground(); 
 
   }, []);
@@ -337,15 +334,11 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                         {/* Logo Area */}
                         <div className="flex flex-col items-center mb-8">
                             <div className="relative mb-6">
-                                {/* The 'Q' Logo Container */}
-                                <div className="w-20 h-24 bg-gradient-to-b from-qatar-maroon to-[#420a1b] rounded-t-full rounded-b-[1.5rem] flex items-center justify-center border-[2px] border-gold-500 shadow-[0_0_30px_-5px_rgba(212,175,55,0.3)] relative overflow-hidden">
-                                    <span className="text-5xl font-serif text-gold-200 drop-shadow-xl pt-1">T</span>
-                                    {/* Metallic Sheen */}
-                                    <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent"></div>
-                                </div>
+                                {/* Use New Logo Component */}
+                                <Logo className="w-28 h-28" showText={false} />
                                 {/* Hanging Chains Connectors on Card */}
-                                <div className="absolute -top-10 -left-12 w-[1px] h-10 bg-gold-500/30 -z-10"></div>
-                                <div className="absolute -top-10 -right-12 w-[1px] h-10 bg-gold-500/30 -z-10"></div>
+                                <div className="absolute -top-10 left-2 w-[1px] h-12 bg-gold-500/30 -z-10"></div>
+                                <div className="absolute -top-10 right-2 w-[1px] h-12 bg-gold-500/30 -z-10"></div>
                             </div>
                             
                             <h2 className="text-2xl font-bold text-center text-white tracking-tight">
