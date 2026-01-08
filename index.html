@@ -1,0 +1,260 @@
+
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#121212" />
+    
+    <!-- PWA Manifest & Icons -->
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <title>Tarmi FinTrack Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              gray: {
+                750: '#3f3f46', // Zinc 700
+                850: '#27272a', // Zinc 800
+                900: '#18181b', // Zinc 900
+                950: '#09090b', // Zinc 950 (True Dark Gray)
+              },
+              primary: '#3b82f6',
+              secondary: '#8b5cf6',
+              success: '#10b981',
+              danger: '#ef4444',
+              warning: '#f59e0b',
+              qatar: {
+                maroon: '#8A1538', // Qatari Flag Maroon
+              },
+              gold: {
+                100: '#FFF9C4',
+                200: '#FFF176',
+                300: '#FFD700', // Classic Gold
+                400: '#FBC02D',
+                500: '#D4AF37', // Metallic Gold
+                600: '#C0A02E',
+                700: '#A08020',
+                800: '#6D5616',
+                900: '#42330D',
+                liquid: 'linear-gradient(135deg, #FBF5B7 0%, #BF953F 25%, #AA771C 50%, #BF953F 75%, #FBF5B7 100%)'
+              }
+            },
+            animation: {
+              'fade-in': 'fadeIn 0.5s ease-out',
+              'slide-up': 'slideUp 0.4s ease-out',
+              'pulse-slow': 'pulse 3s infinite',
+              'border-beam': 'borderBeam 4s linear infinite',
+              'bounce-slight': 'bounceSlight 2s infinite',
+              'shimmer': 'shimmer 2s linear infinite',
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' },
+              },
+              slideUp: {
+                '0%': { transform: 'translateY(20px)', opacity: '0' },
+                '100%': { transform: 'translateY(0)', opacity: '1' },
+              },
+              borderBeam: {
+                '0%': { 'offset-distance': '0%' },
+                '100%': { 'offset-distance': '100%' },
+              },
+              bounceSlight: {
+                  '0%, 100%': { transform: 'translateY(0)' },
+                  '50%': { transform: 'translateY(-5%)' },
+              },
+              shimmer: {
+                '0%': { backgroundPosition: '-1000px 0' },
+                '100%': { backgroundPosition: '1000px 0' }
+              }
+            },
+            backgroundImage: {
+              'gold-gradient': 'linear-gradient(to bottom right, #FDE68A, #D4AF37, #92400E)',
+              'liquid-gold': 'linear-gradient(45deg, #FFD700, #FDB931, #FFFFAC, #D4AF37)',
+            }
+          }
+        }
+      }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      body { 
+        font-family: 'Inter', sans-serif; 
+        background-color: #121212; /* Deep Gray Background */
+        background-image: 
+          radial-gradient(at 0% 0%, rgba(255, 255, 255, 0.03) 0px, transparent 50%),
+          radial-gradient(at 100% 100%, rgba(20, 20, 20, 1) 0px, transparent 50%);
+        color: #f3f4f6;
+        color-scheme: dark;
+        min-height: 100vh;
+        /* Handle safe area insets for mobile */
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+      }
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #18181b; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #3f3f46; 
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #D4AF37; 
+      }
+
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      
+      input[type="date"] { color-scheme: dark; }
+
+      /* Glassmorphism Utilities - Adjusted for Gray Theme */
+      .glass-panel {
+        background: rgba(24, 24, 27, 0.7); /* Zinc 900 alpha */
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      
+      .glass-card {
+        background: rgba(39, 39, 42, 0.4); /* Zinc 800 alpha */
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+      }
+      
+      .glass-card:hover {
+        border-color: rgba(255, 255, 255, 0.1);
+      }
+
+      /* Golden Glow Text */
+      .text-gold-gradient {
+        background: linear-gradient(135deg, #FFF176 0%, #D4AF37 50%, #A08020 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        color: transparent;
+        text-shadow: 0px 0px 20px rgba(212, 175, 55, 0.2);
+      }
+
+      /* Running Line Border Animation */
+      .running-border {
+        position: relative;
+        overflow: hidden;
+      }
+      .running-border::before {
+        content: '';
+        position: absolute;
+        width: 100px;
+        height: 200%;
+        background: linear-gradient(#0000 0%, #D4AF37 50%, #0000 100%);
+        animation: rotate 4s linear infinite;
+        top: -50%;
+        left: 50%;
+        transform-origin: bottom left;
+        z-index: 0;
+        opacity: 0.5;
+        pointer-events: none;
+      }
+      .running-border > * {
+        position: relative;
+        z-index: 1;
+        background: inherit; /* Ensure content covers the spinner center */
+      }
+      
+      @keyframes rotate {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      /* Floating Button Effect */
+      .btn-float {
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 4px 14px 0 rgba(0, 0, 0, 0.39);
+      }
+      .btn-float:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(212, 175, 55, 0.15); /* Golden hint */
+      }
+      .btn-float:active {
+        transform: translateY(0) scale(0.98);
+      }
+
+      @media print {
+        body * { visibility: hidden; }
+        /* Include both invoice-area (modals) and soa-print-area (reports) */
+        #invoice-area, #invoice-area *, #soa-print-area, #soa-print-area * { visibility: visible; }
+        
+        #invoice-area, #soa-print-area {
+          position: absolute; left: 0; top: 0; width: 100%;
+          margin: 0; padding: 20px; background: white !important; color: black !important;
+          z-index: 9999; box-shadow: none !important;
+        }
+        
+        /* Ensure tables break correctly */
+        table { page-break-inside: auto; }
+        tr { page-break-inside: avoid; page-break-after: auto; }
+        thead { display: table-header-group; }
+        tfoot { display: table-footer-group; }
+        
+        .no-print { display: none !important; }
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.2.0",
+    "react/": "https://esm.sh/react@18.2.0/",
+    "react-dom": "https://esm.sh/react-dom@18.2.0?deps=react@18.2.0",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client?deps=react@18.2.0",
+    "react-router-dom": "https://esm.sh/react-router-dom@6.22.3?deps=react@18.2.0,react-dom@18.2.0",
+    "lucide-react": "https://esm.sh/lucide-react@0.363.0?deps=react@18.2.0",
+    "recharts": "https://esm.sh/recharts@2.12.3?deps=react@18.2.0,react-dom@18.2.0",
+    "date-fns": "https://esm.sh/date-fns@3.6.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.2/",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.87.1",
+    "date-fns/": "https://esm.sh/date-fns@^4.1.0/",
+    "vite": "https://esm.sh/vite@^7.2.7",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "xlsx": "https://esm.sh/xlsx@0.18.5",
+    "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
+    "html2canvas": "https://esm.sh/html2canvas@1.4.1",
+    "framer-motion": "https://esm.sh/framer-motion@11.0.8?deps=react@18.2.0,react-dom@18.2.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+    <!-- PWA Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(registration => {
+              console.log('SW registered:', registration);
+            })
+            .catch(error => {
+              console.log('SW registration failed:', error);
+            });
+        });
+      }
+    </script>
+  </body>
+</html>

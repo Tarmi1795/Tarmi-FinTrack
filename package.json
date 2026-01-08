@@ -1,0 +1,32 @@
+{
+  "name": "copy-of-public-fintrack-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "18.2.0",
+    "react-dom": "^19.2.2",
+    "react-router-dom": "6.22.3",
+    "lucide-react": "0.363.0",
+    "recharts": "2.12.3",
+    "date-fns": "^4.1.0",
+    "@supabase/supabase-js": "^2.87.1",
+    "vite": "^7.2.7",
+    "@vitejs/plugin-react": "^5.1.2",
+    "xlsx": "0.18.5",
+    "@google/genai": "^1.33.0",
+    "html2canvas": "1.4.1",
+    "framer-motion": "11.0.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}
