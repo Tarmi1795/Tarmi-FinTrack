@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { format, startOfMonth, endOfMonth, parseISO, isWithinInterval, startOfYear, endOfYear } from 'date-fns';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { ChevronLeft, ChevronRight, Settings, Target, CheckSquare, Square } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, Target, CheckSquare, Square, Copy, Calendar } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
 
 export const Budget: React.FC = () => {
@@ -12,6 +12,11 @@ export const Budget: React.FC = () => {
   const [viewMode, setViewMode] = useState<'monthly' | 'yearly'>('monthly');
   const [isManageOpen, setIsManageOpen] = useState(false);
   
+  // Copy Modal State
+  const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
+  const [copyTargetType, setCopyTargetType] = useState<'single' | 'year'>('single');
+  const [copyTargetValue, setCopyTargetValue] = useState(''); // YYYY-MM for single, YYYY for year
+
   const currency = state.businessProfile.baseCurrency || 'QAR';
 
   const budgetKey = viewMode === 'monthly' ? format(selectedDate, 'yyyy-MM') : format(selectedDate, 'yyyy');
@@ -87,6 +92,50 @@ export const Budget: React.FC = () => {
       setSelectedDate(newDate);
   };
 
+  const handleCopyBudget = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!existingBudget) return;
+      if (!copyTargetValue) {
+          alert("Please select a target.");
+          return;
+      }
+
+      const targets: string[] = [];
+
+      if (copyTargetType === 'single') {
+          // Input type="month" returns YYYY-MM
+          targets.push(copyTargetValue);
+      } else {
+          // Input type="number" returns YYYY
+          const year = parseInt(copyTargetValue);
+          if (isNaN(year) || year < 2000 || year > 2100) {
+              alert("Invalid year.");
+              return;
+          }
+          for (let i = 1; i <= 12; i++) {
+              const m = String(i).padStart(2, '0');
+              targets.push(`${year}-${m}`);
+          }
+      }
+
+      // Perform Copy
+      targets.forEach(targetKey => {
+          dispatch({
+              type: 'SET_MONTHLY_BUDGET',
+              payload: {
+                  monthKey: targetKey,
+                  limit: existingBudget.limit,
+                  categoryLimits: { ...existingBudget.categoryLimits },
+                  visibleAccountIds: [...existingBudget.visibleAccountIds]
+              }
+          });
+      });
+
+      alert(`Budget copied to ${targets.length} month(s).`);
+      setIsCopyModalOpen(false);
+      setCopyTargetValue('');
+  };
+
   // Stats
   const totalBudget = existingBudget?.limit || 0;
   const totalActual = activeAccounts.reduce((sum, cat) => sum + (actualSpending[cat.id] || 0), 0);
@@ -115,6 +164,16 @@ export const Budget: React.FC = () => {
                 <span className="font-mono text-sm font-bold w-32 text-center text-white">{viewMode === 'monthly' ? format(selectedDate, 'MMM yyyy') : format(selectedDate, 'yyyy')}</span>
                 <button onClick={() => changePeriod(1)} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400"><ChevronRight size={20}/></button>
             </div>
+            {viewMode === 'monthly' && (
+                <button 
+                    onClick={() => setIsCopyModalOpen(true)} 
+                    disabled={!existingBudget}
+                    className="p-2.5 bg-gray-800 hover:bg-gray-700 text-white rounded-lg border border-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Copy Budget to other months"
+                >
+                    <Copy size={18} />
+                </button>
+            )}
             <button onClick={() => setIsManageOpen(true)} className="p-2.5 bg-gray-800 hover:bg-gray-700 text-white rounded-lg border border-gray-700 transition-colors">
                 <Settings size={18} />
             </button>
@@ -218,6 +277,74 @@ export const Budget: React.FC = () => {
                   </div>
               ))}
           </div>
+      </Modal>
+
+      {/* Copy Budget Modal */}
+      <Modal isOpen={isCopyModalOpen} onClose={() => setIsCopyModalOpen(false)} title="Copy Budget">
+          <form onSubmit={handleCopyBudget} className="space-y-6">
+              <div className="p-4 bg-blue-900/10 border border-blue-500/20 rounded-xl">
+                  <p className="text-xs text-blue-300 font-bold uppercase tracking-wider mb-1">Source</p>
+                  <p className="text-white font-medium flex items-center gap-2">
+                      <Calendar size={16} />
+                      {format(selectedDate, 'MMMM yyyy')}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-2">
+                      This will overwrite the budget for the target selected below.
+                  </p>
+              </div>
+
+              <div>
+                  <label className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2 block">Target Type</label>
+                  <div className="grid grid-cols-2 gap-3">
+                      <button 
+                          type="button"
+                          onClick={() => { setCopyTargetType('single'); setCopyTargetValue(''); }}
+                          className={`py-3 px-4 rounded-xl border text-sm font-bold transition-all ${copyTargetType === 'single' ? 'bg-primary border-primary text-white' : 'bg-gray-900 border-gray-700 text-gray-400 hover:bg-gray-800'}`}
+                      >
+                          Single Month
+                      </button>
+                      <button 
+                          type="button"
+                          onClick={() => { setCopyTargetType('year'); setCopyTargetValue(''); }}
+                          className={`py-3 px-4 rounded-xl border text-sm font-bold transition-all ${copyTargetType === 'year' ? 'bg-primary border-primary text-white' : 'bg-gray-900 border-gray-700 text-gray-400 hover:bg-gray-800'}`}
+                      >
+                          Full Year
+                      </button>
+                  </div>
+              </div>
+
+              <div>
+                  <label className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2 block">
+                      {copyTargetType === 'single' ? 'Select Target Month' : 'Select Target Year'}
+                  </label>
+                  {copyTargetType === 'single' ? (
+                      <input 
+                          type="month" 
+                          className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none focus:border-primary"
+                          value={copyTargetValue}
+                          onChange={e => setCopyTargetValue(e.target.value)}
+                          required
+                      />
+                  ) : (
+                      <input 
+                          type="number" 
+                          min="2020" max="2100"
+                          placeholder="YYYY"
+                          className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none focus:border-primary"
+                          value={copyTargetValue}
+                          onChange={e => setCopyTargetValue(e.target.value)}
+                          required
+                      />
+                  )}
+              </div>
+
+              <button 
+                  type="submit"
+                  className="w-full py-3 bg-gradient-to-r from-primary to-blue-600 hover:from-blue-600 hover:to-primary text-white font-bold rounded-xl shadow-lg transition-all active:scale-95"
+              >
+                  Copy Budget
+              </button>
+          </form>
       </Modal>
     </div>
   );

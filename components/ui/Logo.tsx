@@ -13,9 +13,9 @@ export const Logo: React.FC<LogoProps> = ({ className = "w-10 h-10", showText = 
         {/* Glow behind the globe */}
         <div className="absolute inset-0 bg-gold-500/20 blur-xl rounded-full opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
         <img 
-            src="https://iili.io/fe0Q41I.png" 
+            src="https://iili.io/fkTzMOJ.png" 
             alt="Tarmi Finance Logo" 
-            className="w-full h-full object-contain drop-shadow-2xl relative z-10"
+            className="w-full h-full object-contain drop-shadow-2xl relative z-10 rounded-full"
         />
       </div>
       {showText && (
