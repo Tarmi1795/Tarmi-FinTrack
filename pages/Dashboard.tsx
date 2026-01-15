@@ -117,14 +117,16 @@ export const Dashboard: React.FC = () => {
       r.status === 'pending' &&
       (!r.issueDate || parseISO(r.issueDate) <= endOfToday)
   );
-  const totalReceivables = pendingReceivables.reduce((acc, curr) => acc + curr.amount, 0);
+  // Subtract paidAmount for correct outstanding balance
+  const totalReceivables = pendingReceivables.reduce((acc, curr) => acc + (curr.amount - (curr.paidAmount || 0)), 0);
   
   const pendingPayables = state.receivables.filter(r => 
       r.type === 'payable' && 
       r.status === 'pending' &&
       (!r.issueDate || parseISO(r.issueDate) <= endOfToday)
   );
-  const totalPayables = pendingPayables.reduce((acc, curr) => acc + curr.amount, 0);
+  // Subtract paidAmount for correct outstanding balance
+  const totalPayables = pendingPayables.reduce((acc, curr) => acc + (curr.amount - (curr.paidAmount || 0)), 0);
 
   // --- 3. Budget & Profit ---
   const budgetObjMonth = state.monthlyBudgets?.find(b => b.monthKey === currentMonthKey);
