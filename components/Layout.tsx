@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Plus, PieChart, Settings as SettingsIcon, ArrowRightLeft, Monitor, BookOpen, LogOut, Target, Lock } from 'lucide-react';
 import { Modal } from './ui/Modal';
 import { TransactionForm } from './TransactionForm';
@@ -16,6 +16,7 @@ interface LayoutProps {
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { authMethods } = useFinance();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const navigate = useNavigate();
 
   const handleLogout = async () => {
       try {
@@ -24,6 +25,35 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           console.error("Logout failed:", e);
       }
   };
+
+  // Global Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+        // 1. Global Search (Ctrl + F or Cmd + F)
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+            e.preventDefault();
+            navigate('/journal', { state: { focusSearch: true } });
+            return;
+        }
+
+        // 2. Quick Add (NumpadAdd or +)
+        // Ensure we are not inside an input field
+        const activeTag = document.activeElement?.tagName.toLowerCase();
+        const isInputActive = activeTag === 'input' || activeTag === 'textarea';
+
+        if (!isInputActive) {
+            if (e.code === 'NumpadAdd' || e.key === '+') {
+                e.preventDefault();
+                if (!isAddModalOpen) {
+                    setIsAddModalOpen(true);
+                }
+            }
+        }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isAddModalOpen, navigate]);
 
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', to: '/' },
@@ -89,6 +119,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           <button
             onClick={() => setIsAddModalOpen(true)}
             className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-blue-600 hover:from-blue-500 hover:to-primary text-white py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-blue-900/30 btn-float border border-white/10 active:scale-95 transform"
+            title="Press '+' to open"
           >
             <Plus size={20} />
             Quick Add

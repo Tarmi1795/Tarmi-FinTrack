@@ -465,6 +465,21 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                             </select>
                         </div>
                     </div>
+                    {/* Math Toolbar */}
+                    <div className="flex gap-2 mt-2 overflow-x-auto no-scrollbar pb-1">
+                        {['+', '-', '*', '/', '(', ')'].map(op => (
+                            <button
+                                key={op}
+                                type="button"
+                                tabIndex={-1}
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => setAmount(prev => prev + op)}
+                                className="flex-1 min-w-[40px] h-10 bg-gray-800 hover:bg-gray-700 text-gold-400 font-bold rounded-lg border border-gray-700 flex items-center justify-center text-lg active:scale-95 transition-transform"
+                            >
+                                {op === '*' ? '×' : op === '/' ? '÷' : op}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 {type === 'transfer' ? (

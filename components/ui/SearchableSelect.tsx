@@ -34,6 +34,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
 
   const selectedOption = options.find(o => o.id === value);
 
@@ -71,22 +72,28 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     onChange(optionId);
     setIsOpen(false);
     setSearch('');
+    // Return focus to trigger after selection if mouse clicked or enter pressed
+    // But if Tab pressed, we want focus to move naturally.
   };
 
-  const clearSelection = (e: React.MouseEvent) => {
+  const clearSelection = (e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation();
     onChange('');
     setSearch('');
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!isOpen) {
-        if (e.key === 'ArrowDown' || e.key === 'Enter') {
-             e.preventDefault();
-             setIsOpen(true);
-        }
-        return;
-    }
+  const handleTriggerKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (disabled) return;
+      
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          setIsOpen(true);
+      }
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // If we're closed (shouldn't happen for input but good safety), pass
+    if (!isOpen) return;
 
     switch (e.key) {
         case 'ArrowDown':
@@ -101,14 +108,28 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
             e.preventDefault();
             if (filteredOptions.length > 0) {
                 handleSelect(filteredOptions[highlightedIndex].id);
+                // Return focus to trigger on Enter so user doesn't get lost
+                if(triggerRef.current) triggerRef.current.focus();
             }
             break;
         case 'Escape':
             e.preventDefault();
             setIsOpen(false);
+            if(triggerRef.current) triggerRef.current.focus();
             break;
         case 'Tab':
-            setIsOpen(false);
+            // Custom Tab Behavior: Select highlighted item, then allow focus to move
+            if (filteredOptions.length > 0) {
+                // Select the item
+                onChange(filteredOptions[highlightedIndex].id);
+                setSearch('');
+                // We do NOT preventDefault here. 
+                // We let the Tab event propagate so the browser moves focus to the next element.
+                // We also close the menu.
+                setIsOpen(false);
+            } else {
+                setIsOpen(false);
+            }
             break;
     }
   };
@@ -116,7 +137,10 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   return (
     <div className={`relative ${className}`} ref={containerRef}>
       <div
-        className={`w-full px-4 py-3 bg-gray-900 border ${isOpen ? 'border-primary ring-1 ring-primary' : 'border-gray-700'} rounded-xl text-sm flex items-center justify-between cursor-pointer transition-all ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-gray-600'}`}
+        ref={triggerRef}
+        tabIndex={disabled ? -1 : 0}
+        onKeyDown={handleTriggerKeyDown}
+        className={`w-full px-4 py-3 bg-gray-900 border ${isOpen ? 'border-primary ring-1 ring-primary' : 'border-gray-700'} rounded-xl text-sm flex items-center justify-between cursor-pointer transition-all outline-none focus:ring-2 focus:ring-primary/50 ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-gray-600'}`}
         onClick={() => {
             if (!disabled) {
                 setIsOpen(!isOpen);
@@ -138,7 +162,12 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
         </div>
         <div className="flex items-center gap-2">
           {selectedOption && !required && !disabled && (
-            <div role="button" onClick={clearSelection} className="p-1 hover:bg-gray-800 rounded-full text-gray-500">
+            <div 
+                role="button" 
+                onClick={clearSelection} 
+                className="p-1 hover:bg-gray-800 rounded-full text-gray-500"
+                tabIndex={-1} // Skip clear button in tab order for speed, can be clicked
+            >
               <X size={14} />
             </div>
           )}
@@ -158,7 +187,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                 placeholder="Search..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                onKeyDown={handleKeyDown}
+                onKeyDown={handleInputKeyDown}
                 autoFocus
                 onClick={(e) => e.stopPropagation()}
               />
@@ -177,7 +206,10 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                     <div
                     key={option.id}
                     className={`px-4 py-3 cursor-pointer flex items-center justify-between text-sm transition-colors ${bgClass}`}
-                    onClick={() => handleSelect(option.id)}
+                    onClick={() => {
+                        handleSelect(option.id);
+                        if(triggerRef.current) triggerRef.current.focus();
+                    }}
                     onMouseEnter={() => setHighlightedIndex(index)}
                     >
                     <div className="flex items-center gap-3">

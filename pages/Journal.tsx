@@ -1,15 +1,30 @@
-import React, { useState, useMemo } from 'react';
+
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { format, parseISO } from 'date-fns';
 import { Search, Trash2, Pencil, Calendar, Tag, CreditCard } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
 import { TransactionForm } from '../components/TransactionForm';
 import { Transaction } from '../types';
+import { useLocation } from 'react-router-dom';
 
 export const Journal: React.FC = () => {
   const { state, dispatch } = useFinance();
   const [searchTerm, setSearchTerm] = useState('');
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  const location = useLocation();
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+      // Focus search input if navigated here via Ctrl+F (Global Search shortcut)
+      if (location.state && (location.state as any).focusSearch) {
+          if (searchInputRef.current) {
+              searchInputRef.current.focus();
+          }
+          // Clear history state to prevent refocusing on refresh (optional but cleaner)
+          window.history.replaceState({}, document.title);
+      }
+  }, [location]);
 
   const filteredTransactions = useMemo(() => {
     return state.transactions.filter(t => {
@@ -38,6 +53,7 @@ export const Journal: React.FC = () => {
         <div className="flex-1 flex items-center gap-2 bg-gray-900/50 px-3 py-2.5 rounded-lg border border-gray-700/50 focus-within:border-gold-500/50 transition-colors">
            <Search size={18} className="text-gray-500" />
            <input 
+             ref={searchInputRef}
              type="text" 
              placeholder="Search transactions..." 
              className="bg-transparent text-white outline-none w-full text-sm placeholder-gray-600"

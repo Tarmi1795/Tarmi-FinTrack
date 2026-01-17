@@ -505,8 +505,23 @@ export const ApAr: React.FC = () => {
                 <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Amount</label>
                     <div className="flex gap-2">
-                        <input type="text" className="flex-1 px-4 py-2 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none focus:border-primary" value={amount} onChange={e => setAmount(e.target.value)} onBlur={() => setAmount(evaluateMathExpression(amount))} placeholder="0.00" required />
+                        <input type="text" inputMode="decimal" className="flex-1 px-4 py-2 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none focus:border-primary" value={amount} onChange={e => setAmount(e.target.value)} onBlur={() => setAmount(evaluateMathExpression(amount))} placeholder="0.00" required />
                         <select className="w-24 px-2 bg-gray-950 border border-gray-700 rounded-xl text-white outline-none" value={currency} onChange={e => setCurrency(e.target.value as CurrencyCode)}><option value="QAR">QAR</option><option value="PHP">PHP</option></select>
+                    </div>
+                    {/* Math Toolbar */}
+                    <div className="flex gap-2 mt-2 overflow-x-auto no-scrollbar pb-1">
+                        {['+', '-', '*', '/', '(', ')'].map(op => (
+                            <button
+                                key={op}
+                                type="button"
+                                tabIndex={-1}
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => setAmount(prev => prev + op)}
+                                className="flex-1 min-w-[40px] h-10 bg-gray-800 hover:bg-gray-700 text-gold-400 font-bold rounded-lg border border-gray-700 flex items-center justify-center text-lg active:scale-95 transition-transform"
+                            >
+                                {op === '*' ? '×' : op === '/' ? '÷' : op}
+                            </button>
+                        ))}
                     </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -556,6 +571,7 @@ export const ApAr: React.FC = () => {
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Amount to {selectedItem?.type === 'receivable' ? 'Receive' : 'Pay'}</label>
                     <input 
                         type="text" 
+                        inputMode="decimal"
                         className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none focus:border-primary font-bold text-lg" 
                         value={paymentAmount} 
                         onChange={e => setPaymentAmount(e.target.value)} 
@@ -563,6 +579,21 @@ export const ApAr: React.FC = () => {
                         placeholder="0.00" 
                         required 
                     />
+                    {/* Math Toolbar */}
+                    <div className="flex gap-2 mt-2 overflow-x-auto no-scrollbar pb-1">
+                        {['+', '-', '*', '/', '(', ')'].map(op => (
+                            <button
+                                key={op}
+                                type="button"
+                                tabIndex={-1}
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => setPaymentAmount(prev => prev + op)}
+                                className="flex-1 min-w-[40px] h-10 bg-gray-800 hover:bg-gray-700 text-gold-400 font-bold rounded-lg border border-gray-700 flex items-center justify-center text-lg active:scale-95 transition-transform"
+                            >
+                                {op === '*' ? '×' : op === '/' ? '÷' : op}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 <div>
