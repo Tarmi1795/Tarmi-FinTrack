@@ -263,6 +263,25 @@ export const Settings: React.FC = () => {
       setEditingTemplate(null);
   };
 
+  const handleNewRecurring = () => {
+      setEditingRecurring({
+          id: Math.random().toString(36).substr(2, 9),
+          type: 'expense',
+          accountId: '',
+          amount: 0,
+          currency: (state.businessProfile.baseCurrency as CurrencyCode) || 'USD',
+          source: 'personal',
+          frequency: 'monthly',
+          nextDueDate: new Date().toISOString(),
+          active: true,
+          generationType: 'transaction'
+      });
+      setRecNote(''); setRecAmount('0'); setRecFreq('monthly'); setRecNextDate(new Date().toISOString().split('T')[0]);
+      setRecDebitAcc(''); setRecCreditAcc(''); setRecGenerationType('transaction'); setRecReceivableType('bill'); 
+      setRecDueDays('0'); setRecActive(true);
+      setIsRecurringModalOpen(true);
+  };
+
   const handleEditRecurring = (rule: RecurringTransaction) => {
       setEditingRecurring(rule);
       setRecNote(rule.note || '');
@@ -377,21 +396,27 @@ export const Settings: React.FC = () => {
       if (!editingRecurring) return;
       if (!recDebitAcc) { alert("Please select a Debit account."); return; }
       
-      const updatedRule: RecurringTransaction = {
+      const ruleToSave: RecurringTransaction = {
           ...editingRecurring,
           note: recNote,
           amount: parseFloat(recAmount) || 0,
           frequency: recFreq,
-          nextDueDate: new Date(recNextDate).toISOString(),
+          nextDueDate: new Date(recNextDate + 'T00:00:00.000Z').toISOString(),
           accountId: recDebitAcc,
           paymentAccountId: recCreditAcc || undefined,
           generationType: recGenerationType,
-          receivableType: recReceivableType,
-          dueDays: parseInt(recDueDays) || 0,
-          active: recActive
+          receivableType: recGenerationType === 'receivable' ? recReceivableType : undefined,
+          dueDays: recGenerationType === 'receivable' ? (parseInt(recDueDays) || 0) : undefined,
+          active: recActive,
+          type: recGenerationType === 'receivable' ? (recReceivableType === 'invoice' ? 'income' : 'expense') : editingRecurring.type
       };
       
-      dispatch({ type: 'UPDATE_RECURRING', payload: updatedRule });
+      const exists = state.recurring.some(r => r.id === editingRecurring.id);
+      if (exists) {
+          dispatch({ type: 'UPDATE_RECURRING', payload: ruleToSave });
+      } else {
+          dispatch({ type: 'ADD_RECURRING', payload: ruleToSave });
+      }
       setIsRecurringModalOpen(false);
       setEditingRecurring(null);
   };
@@ -717,6 +742,12 @@ export const Settings: React.FC = () => {
 
       {activeTab === 'recurring' && (
           <div className="space-y-4 animate-fade-in">
+              <button 
+                  onClick={handleNewRecurring}
+                  className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-purple-900/20 active:scale-95 transition-transform"
+              >
+                  <Plus size={16} /> New Recurring Rule
+              </button>
               {state.recurring.map(rule => {
                   const debitName = state.accounts.find(a => a.id === rule.accountId)?.name || 'Unknown';
                   const creditName = rule.paymentAccountId ? (state.accounts.find(a => a.id === rule.paymentAccountId)?.name || 'None') : 'None';

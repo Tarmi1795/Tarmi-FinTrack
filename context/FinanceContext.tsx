@@ -528,20 +528,32 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
                           });
                       }
                   } else {
-                      newRecTransactions.push({
-                          id: Math.random().toString(36).substr(2, 9),
-                          date: baseDate.toISOString(), 
-                          type: rule.type,
-                          amount: rule.amount,
-                          currency: rule.currency,
-                          originalAmount: rule.originalAmount,
-                          accountId: rule.accountId,
-                          source: rule.source,
-                          paymentAccountId: rule.paymentAccountId,
-                          relatedPartyId: rule.partyId,
-                          note: `Recurring: ${rule.note || 'Auto Transaction'}`,
-                          recurringRuleId: rule.id
-                      });
+                      // TWEAK: Ask user before triggering raw transaction (Requirements 1)
+                      const shouldRecognize = window.confirm(`Recurring Rule Due: "${rule.note || 'Auto'}" (${rule.currency} ${rule.amount})\n\nClick OK to RECOGNIZE and record now.\nClick CANCEL to PAUSE this rule.`);
+
+                      if (shouldRecognize) {
+                          newRecTransactions.push({
+                              id: Math.random().toString(36).substr(2, 9),
+                              date: baseDate.toISOString(), 
+                              type: rule.type,
+                              amount: rule.amount,
+                              currency: rule.currency,
+                              originalAmount: rule.originalAmount,
+                              accountId: rule.accountId,
+                              source: rule.source,
+                              paymentAccountId: rule.paymentAccountId,
+                              relatedPartyId: rule.partyId,
+                              note: `Recurring: ${rule.note || 'Auto Transaction'}`,
+                              recurringRuleId: rule.id
+                          });
+                      } else {
+                          // Pause the rule as requested
+                          updatedRecurring.push({
+                              ...rule,
+                              active: false
+                          });
+                          return; // Exit this rule check
+                      }
                   }
                   
                   
