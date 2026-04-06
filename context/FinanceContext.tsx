@@ -57,7 +57,7 @@ type Action =
   | { type: 'ADD_RECURRING'; payload: RecurringTransaction }
   | { type: 'UPDATE_RECURRING'; payload: RecurringTransaction }
   | { type: 'DELETE_RECURRING'; payload: string }
-  | { type: 'PROCESS_RECURRING_UPDATES'; payload: { transactions: Transaction[], updatedRecurring: RecurringTransaction[] } }
+  | { type: 'PROCESS_RECURRING_UPDATES'; payload: { transactions: Transaction[], receivables?: Receivable[], updatedRecurring: RecurringTransaction[] } }
   | { type: 'PROCESS_ASSET_DEPRECIATION'; payload: { transactions: Transaction[], updatedAssets: Asset[] } }
   | { type: 'RESET_DATA' }
   | { type: 'SET_STATE'; payload: any }
@@ -86,45 +86,63 @@ const financeReducer = (state: AppState, action: Action): AppState => {
       newState = withTime({ ...state, transactions: [action.payload, ...state.transactions] });
       break;
     case 'UPDATE_TRANSACTION':
-      newState = withTime({ ...state, transactions: state.transactions.map(t => t.id === action.payload.id ? action.payload : t) });
-      break;
-    case 'DELETE_TRANSACTION':
-      const txToDelete = state.transactions.find(t => t.id === action.payload);
-      let updatedReceivables = state.receivables;
-      
-      // SYNC LOGIC: Journal -> AR/AP
-      if (txToDelete && txToDelete.note && txToDelete.note.includes('Ref:')) {
-          const parts = txToDelete.note.split('Ref:');
-          if (parts.length > 1) {
-              const potentialId = parts[1].trim().split(' ')[0]; // Extract ID
-              if (potentialId) {
-                  const lowerNote = txToDelete.note.toLowerCase();
-                  if (lowerNote.includes('accrual')) {
-                      // If Accrual (Origin) is deleted, delete the Receivable/Payable record entirely
-                      updatedReceivables = updatedReceivables.filter(r => r.id !== potentialId);
-                  } else if (lowerNote.includes('settlement')) {
-                      // If Settlement (Payment) is deleted, reverse the paid amount and status
-                      updatedReceivables = updatedReceivables.map(r => {
-                          if (r.id === potentialId) {
-                              const newPaid = Math.max(0, (r.paidAmount || 0) - txToDelete.amount);
-                              return {
-                                  ...r,
-                                  paidAmount: newPaid,
-                                  status: 'pending', // Revert to pending
-                                  paidDate: undefined
-                              };
-                          }
-                          return r;
-                      });
+      const updatedTx = action.payload;
+      newState = withTime({ 
+          ...state, 
+          transactions: state.transactions.map(t => t.id === updatedTx.id ? updatedTx : t),
+          // SYNC UPDATE: Journal -> AR/AP
+          receivables: state.receivables.map(r => {
+              if (r.id === updatedTx.receivableId) {
+                  // If it's the main AR entry, update the invoice amount to match
+                  if (updatedTx.note?.toLowerCase().includes('accrual')) {
+                      return { ...r, amount: updatedTx.amount, originalAmount: updatedTx.originalAmount || updatedTx.amount };
                   }
               }
+              return r;
+          })
+      });
+      break;
+    case 'DELETE_TRANSACTION':
+      const txId = action.payload;
+      const txToDelete = state.transactions.find(t => t.id === txId);
+      if (!txToDelete) break;
+
+      let rFinal = state.receivables;
+      let recFinal = state.recurring || [];
+
+      // 1. SYNC: Journal -> AR/AP
+      if (txToDelete.receivableId) {
+          const lowerNote = txToDelete.note?.toLowerCase() || '';
+          if (lowerNote.includes('accrual')) {
+              // Deleting the source invoice entry -> delete the invoice
+              rFinal = rFinal.filter(r => r.id !== txToDelete.receivableId);
+              // Also delete any rules born from this invoice
+              recFinal = recFinal.filter(rule => rule.id !== state.receivables.find(r => r.id === txToDelete.receivableId)?.recurring?.ruleId);
+          } else if (lowerNote.includes('settlement')) {
+              // Deleting a payment -> reverse the payment balance
+              rFinal = rFinal.map(r => {
+                  if (r.id === txToDelete.receivableId) {
+                      const newPaid = Math.max(0, (r.paidAmount || 0) - txToDelete.amount);
+                      return { ...r, paidAmount: newPaid, status: 'pending', paidDate: undefined };
+                  }
+                  return r;
+              });
           }
+      }
+
+      // 2. SYNC: Journal -> Recurring (User requirement)
+      if (txToDelete.recurringRuleId) {
+          // If the user deletes a recurring journal entry, they expect the rule to stop (as requested)
+          recFinal = recFinal.filter(rule => rule.id !== txToDelete.recurringRuleId);
+          // Also remove recurring marker from any linked receivables
+          rFinal = rFinal.map(r => r.recurring?.ruleId === txToDelete.recurringRuleId ? { ...r, recurring: undefined } : r);
       }
 
       newState = withTime({ 
           ...state, 
-          transactions: state.transactions.filter(t => t.id !== action.payload),
-          receivables: updatedReceivables
+          transactions: state.transactions.filter(t => t.id !== txId),
+          receivables: rFinal,
+          recurring: recFinal
       });
       break;
     case 'ADD_ACCOUNT':
@@ -227,12 +245,17 @@ const financeReducer = (state: AppState, action: Action): AppState => {
       newState = withTime({ ...state, recurring: (state.recurring || []).map(r => r.id === action.payload.id ? action.payload : r) });
       break;
     case 'DELETE_RECURRING':
-      newState = withTime({ ...state, recurring: (state.recurring || []).filter(r => r.id !== action.payload) });
+      newState = withTime({ 
+          ...state, 
+          recurring: (state.recurring || []).filter(r => r.id !== action.payload),
+          receivables: state.receivables.map(r => r.recurring?.ruleId === action.payload ? { ...r, recurring: undefined } : r)
+      });
       break;
     case 'PROCESS_RECURRING_UPDATES':
         newState = withTime({
             ...state,
             transactions: [...action.payload.transactions, ...state.transactions],
+            receivables: action.payload.receivables ? [...action.payload.receivables, ...state.receivables] : state.receivables,
             recurring: state.recurring.map(r => {
                 const updated = action.payload.updatedRecurring.find(ur => ur.id === r.id);
                 return updated || r;
@@ -443,29 +466,84 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       
       const now = new Date();
       const newRecTransactions: Transaction[] = [];
+      const newRecReceivables: Receivable[] = [];
       const updatedRecurring: RecurringTransaction[] = [];
 
       recurringRules.forEach(rule => {
           if (rule.active && rule.nextDueDate) {
               const dueDate = parseISO(rule.nextDueDate);
               if (isPast(dueDate)) {
-                  newRecTransactions.push({
-                      id: Math.random().toString(36).substr(2, 9),
-                      date: new Date().toISOString(), 
-                      type: rule.type,
-                      amount: rule.amount,
-                      currency: rule.currency,
-                      originalAmount: rule.originalAmount,
-                      accountId: rule.accountId,
-                      source: rule.source,
-                      paymentAccountId: rule.paymentAccountId,
-                      relatedPartyId: rule.partyId,
-                      note: `Recurring: ${rule.note || 'Auto Transaction'}`
-                  });
-
                   // STRICT DATE CALCULATION FOR AUTOMATED SCHEDULER
                   const dateStr = rule.nextDueDate.split('T')[0];
                   const baseDate = new Date(dateStr + 'T00:00:00.000Z');
+
+                  if (rule.generationType === 'receivable') {
+                      const recDueDate = addDays(baseDate, rule.dueDays || 0).toISOString();
+                      const recId = Math.random().toString(36).substr(2, 9);
+                      
+                      const party = state.parties.find(p => p.id === rule.partyId);
+                      const partyLinkedAccount = party?.linkedAccountId;
+                      const rType = rule.type === 'income' ? 'receivable' : 'payable';
+                      const subType = rule.receivableType || (rule.type === 'income' ? 'invoice' : 'bill');
+
+                      newRecReceivables.push({
+                          id: recId,
+                          type: rType,
+                          subType: subType,
+                          partyName: party?.name || 'Recurring Contact',
+                          partyId: rule.partyId,
+                          targetAccountId: rule.accountId,
+                          amount: rule.amount,
+                          paidAmount: 0,
+                          originalAmount: rule.originalAmount,
+                          currency: rule.currency,
+                          issueDate: baseDate.toISOString(),
+                          dueDate: recDueDate,
+                          status: 'pending',
+                          notes: `Auto-generated from Recurring: ${rule.note || ''}`,
+                          recurring: {
+                              active: rule.active,
+                              amount: rule.amount,
+                              frequency: rule.frequency,
+                              nextDueDate: rule.nextDueDate
+                          }
+                      });
+
+                      // Auto-Generate Accrual Journal Entry
+                      if (partyLinkedAccount) {
+                          newRecTransactions.push({
+                              id: Math.random().toString(36).substr(2, 9),
+                              date: baseDate.toISOString(),
+                              type: rule.type,
+                              amount: rule.amount,
+                              currency: rule.currency,
+                              originalAmount: rule.originalAmount,
+                              relatedPartyId: rule.partyId,
+                              source: rType === 'receivable' ? 'side_hustle' : 'personal',
+                              note: `Accrual (Auto): ${subType} Ref:${recId}`,
+                               accountId: rType === 'receivable' ? partyLinkedAccount : rule.accountId,
+                              paymentAccountId: rType === 'receivable' ? rule.accountId : partyLinkedAccount,
+                              receivableId: recId,
+                              recurringRuleId: rule.id
+                          });
+                      }
+                  } else {
+                      newRecTransactions.push({
+                          id: Math.random().toString(36).substr(2, 9),
+                          date: baseDate.toISOString(), 
+                          type: rule.type,
+                          amount: rule.amount,
+                          currency: rule.currency,
+                          originalAmount: rule.originalAmount,
+                          accountId: rule.accountId,
+                          source: rule.source,
+                          paymentAccountId: rule.paymentAccountId,
+                          relatedPartyId: rule.partyId,
+                          note: `Recurring: ${rule.note || 'Auto Transaction'}`,
+                          recurringRuleId: rule.id
+                      });
+                  }
+                  
                   
                   let nextDate = baseDate;
                   if (rule.frequency === 'daily') nextDate = addDays(baseDate, 1);
@@ -482,8 +560,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           }
       });
 
-      if (newRecTransactions.length > 0) {
-          dispatch({ type: 'PROCESS_RECURRING_UPDATES', payload: { transactions: newRecTransactions, updatedRecurring } });
+      if (newRecTransactions.length > 0 || newRecReceivables.length > 0) {
+          dispatch({ type: 'PROCESS_RECURRING_UPDATES', payload: { transactions: newRecTransactions, receivables: newRecReceivables, updatedRecurring } });
       }
 
       // --- DYNAMIC DEPRECIATION LOGIC ---

@@ -52,7 +52,8 @@ const toDB = {
     recurring: (r: RecurringTransaction, uid: string) => ({
         id: r.id, user_id: uid, active: r.active, type: r.type, account_id: r.accountId, amount: r.amount, currency: r.currency,
         source: r.source, payment_account_id: r.paymentAccountId, party_id: r.partyId, note: r.note,
-        frequency: r.frequency, next_due_date: r.nextDueDate, last_run_date: r.lastRunDate, original_amount: r.originalAmount
+        frequency: r.frequency, next_due_date: r.nextDueDate, last_run_date: r.lastRunDate, original_amount: r.originalAmount,
+        generation_type: r.generationType || 'transaction', receivable_type: r.receivableType, due_days: r.dueDays
     }),
     template: (t: TransactionTemplate, uid: string) => ({
         id: t.id, user_id: uid, name: t.name, account_id: t.accountId, amount: t.amount, currency: t.currency,
@@ -91,7 +92,8 @@ const fromDB = {
     recurring: (r: any): RecurringTransaction => ({
         id: r.id, active: r.active, type: r.type, accountId: r.account_id, amount: r.amount, currency: r.currency,
         source: r.source, paymentAccountId: r.payment_account_id, partyId: r.party_id, note: r.note,
-        frequency: r.frequency, nextDueDate: r.next_due_date, lastRunDate: r.last_run_date, originalAmount: r.original_amount
+        frequency: r.frequency, nextDueDate: r.next_due_date, lastRunDate: r.last_run_date, originalAmount: r.original_amount,
+        generationType: r.generation_type, receivableType: r.receivable_type, dueDays: r.due_days
     }),
     template: (r: any): TransactionTemplate => ({
         id: r.id, name: r.name, accountId: r.account_id, amount: r.amount, currency: r.currency,

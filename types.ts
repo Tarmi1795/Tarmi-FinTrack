@@ -53,6 +53,7 @@ export interface RecurringConfig {
   amount: number;
   frequency: RecurrenceFrequency;
   nextDueDate: string;
+  ruleId?: string; 
 }
 
 export interface RecurringTransaction {
@@ -70,6 +71,9 @@ export interface RecurringTransaction {
   active: boolean;
   lastRunDate?: string;
   originalAmount?: number;
+  generationType?: 'transaction' | 'receivable';
+  receivableType?: 'invoice' | 'bill';
+  dueDays?: number;
 }
 
 export interface Asset {
@@ -97,6 +101,8 @@ export interface Transaction {
   paymentAccountId?: string; // The contra account
   note?: string;
   relatedPartyId?: string; // ID of Party
+  receivableId?: string; // For linking to AR/AP
+  recurringRuleId?: string; // For linking to Recurring Rules
 }
 
 export interface TransactionTemplate {

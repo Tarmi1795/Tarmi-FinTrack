@@ -1,13 +1,14 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { Trash2, Plus, LayoutGrid, Book, AlertTriangle, Users, Pencil, Check, X, Database, Search, FileJson, FileSpreadsheet, Building2, ChevronRight, ChevronDown, Folder, Repeat, Mail, Phone, MapPin, Tag, Star, Upload, FileText, Globe, ArrowRightLeft } from 'lucide-react';
-import { Account, TransactionTemplate, AccountClass, Party, PartyType, AccountLevel, Transaction, AppState, CurrencyCode } from '../types';
+import { Trash2, Plus, LayoutGrid, Book, AlertTriangle, Users, Pencil, Check, X, Database, Search, FileJson, FileSpreadsheet, Building2, ChevronRight, ChevronDown, Folder, Repeat, Mail, Phone, MapPin, Tag, Star, Upload, FileText, Globe, ArrowRightLeft, RefreshCw } from 'lucide-react';
+import { Account, TransactionTemplate, AccountClass, Party, PartyType, AccountLevel, Transaction, AppState, CurrencyCode, RecurringTransaction, RecurrenceFrequency } from '../types';
 import { Modal } from '../components/ui/Modal';
 import { format, parseISO, addMonths, addWeeks, addYears, addDays, endOfDay } from 'date-fns';
 import { excelService } from '../services/excel';
 import { buildAccountTree, AccountNode } from '../utils/accountHierarchy';
 import { TransactionForm } from '../components/TransactionForm';
+import { SearchableSelect } from '../components/ui/SearchableSelect';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { CURRENCIES } from '../constants';
 
@@ -59,6 +60,20 @@ export const Settings: React.FC = () => {
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<TransactionTemplate | null>(null);
 
+  // Recurring Modal State
+  const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
+  const [editingRecurring, setEditingRecurring] = useState<RecurringTransaction | null>(null);
+  const [recNote, setRecNote] = useState('');
+  const [recAmount, setRecAmount] = useState('');
+  const [recFreq, setRecFreq] = useState<RecurrenceFrequency>('monthly');
+  const [recNextDate, setRecNextDate] = useState('');
+  const [recDebitAcc, setRecDebitAcc] = useState('');
+  const [recCreditAcc, setRecCreditAcc] = useState('');
+  const [recGenerationType, setRecGenerationType] = useState<'transaction' | 'receivable'>('transaction');
+  const [recReceivableType, setRecReceivableType] = useState<'invoice' | 'bill'>('bill');
+  const [recDueDays, setRecDueDays] = useState('0');
+  const [recActive, setRecActive] = useState(true);
+
   // Migration State
   const [migrationTarget, setMigrationTarget] = useState<CurrencyCode | ''>('');
   const [migrationRate, setMigrationRate] = useState('');
@@ -88,6 +103,10 @@ export const Settings: React.FC = () => {
   }, [coaSearch, state.accounts]);
 
   const flatAccounts = useMemo(() => state.accounts.filter(a => a.level === 'group' || a.level === 'class' || a.level === 'gl').sort((a,b) => a.code.localeCompare(b.code)), [state.accounts]);
+
+  const availableAccounts = useMemo(() => 
+      state.accounts.filter(a => a.isPosting).map(c => ({ id: c.id, label: c.name, subLabel: c.code })),
+  [state.accounts]);
 
   // Update Class when Parent changes
   useEffect(() => {
@@ -242,6 +261,139 @@ export const Settings: React.FC = () => {
       dispatch({ type: 'ADD_TEMPLATE', payload: template });
       setIsTemplateModalOpen(false);
       setEditingTemplate(null);
+  };
+
+  const handleEditRecurring = (rule: RecurringTransaction) => {
+      setEditingRecurring(rule);
+      setRecNote(rule.note || '');
+      setRecAmount(rule.amount.toString());
+      setRecFreq(rule.frequency);
+      setRecNextDate(rule.nextDueDate ? rule.nextDueDate.split('T')[0] : '');
+      setRecDebitAcc(rule.accountId);
+      setRecCreditAcc(rule.paymentAccountId || '');
+      setRecGenerationType(rule.generationType || 'transaction');
+      setRecReceivableType(rule.receivableType || 'bill');
+      setRecDueDays(rule.dueDays?.toString() || '0');
+      setRecActive(rule.active);
+      setIsRecurringModalOpen(true);
+  };
+
+  const handleManualTrigger = (rule: RecurringTransaction) => {
+      const confirmMsg = `Manually trigger this ${rule.generationType || 'transaction'} now?\n\nThis will generate the next installment immediately and move the rule's next due date forward.`;
+      if (!confirm(confirmMsg)) return;
+
+      const dateStr = rule.nextDueDate.split('T')[0];
+      const baseDate = new Date(dateStr + 'T00:00:00.000Z');
+      
+      let nextTsTransactions: any[] = [];
+      let nextTsReceivables: any[] = [];
+
+      if (rule.generationType === 'receivable') {
+          const recDueDate = addDays(baseDate, rule.dueDays || 0).toISOString();
+          const recId = Math.random().toString(36).substr(2, 9);
+          const party = state.parties.find(p => p.id === rule.partyId);
+          const partyLinkedAccount = party?.linkedAccountId;
+          const rType = rule.type === 'income' ? 'receivable' : 'payable';
+          const subType = rule.receivableType || (rule.type === 'income' ? 'invoice' : 'bill');
+
+          nextTsReceivables.push({
+              id: recId,
+              type: rType,
+              subType: subType,
+              partyName: party?.name || 'Recurring Contact',
+              partyId: rule.partyId,
+              targetAccountId: rule.accountId,
+              amount: rule.amount,
+              paidAmount: 0,
+              originalAmount: rule.originalAmount,
+              currency: rule.currency,
+              issueDate: baseDate.toISOString(),
+              dueDate: recDueDate,
+              status: 'pending',
+              notes: `Auto-generated (Manual Trigger) from Recurring: ${rule.note || ''}`,
+              recurring: {
+                  active: rule.active,
+                  amount: rule.amount,
+                  frequency: rule.frequency,
+                  nextDueDate: rule.nextDueDate
+              }
+          });
+
+          if (partyLinkedAccount) {
+              nextTsTransactions.push({
+                  id: Math.random().toString(36).substr(2, 9),
+                  date: baseDate.toISOString(),
+                  type: rule.type,
+                  amount: rule.amount,
+                  currency: rule.currency,
+                  originalAmount: rule.originalAmount,
+                  relatedPartyId: rule.partyId,
+                  source: rType === 'receivable' ? 'side_hustle' : 'personal',
+                  note: `Accrual (Manual Trigger): ${subType} Ref:${recId}`,
+                  accountId: rType === 'receivable' ? partyLinkedAccount : rule.accountId,
+                  paymentAccountId: rType === 'receivable' ? rule.accountId : partyLinkedAccount
+              });
+          }
+      } else {
+          nextTsTransactions.push({
+              id: Math.random().toString(36).substr(2, 9),
+              date: baseDate.toISOString(), 
+              type: rule.type,
+              amount: rule.amount,
+              currency: rule.currency,
+              originalAmount: rule.originalAmount,
+              accountId: rule.accountId,
+              source: rule.source || 'personal',
+              paymentAccountId: rule.paymentAccountId,
+              relatedPartyId: rule.partyId,
+              note: `Recurring (Manual Trigger): ${rule.note || 'Auto Transaction'}`
+          });
+      }
+
+      let nextDate = baseDate;
+      if (rule.frequency === 'daily') nextDate = addDays(baseDate, 1);
+      if (rule.frequency === 'weekly') nextDate = addWeeks(baseDate, 1);
+      if (rule.frequency === 'monthly') nextDate = addMonths(baseDate, 1);
+      if (rule.frequency === 'yearly') nextDate = addYears(baseDate, 1);
+
+      const updatedRule = {
+          ...rule,
+          lastRunDate: new Date().toISOString(),
+          nextDueDate: nextDate.toISOString()
+      };
+
+      dispatch({ 
+          type: 'PROCESS_RECURRING_UPDATES', 
+          payload: { 
+              transactions: nextTsTransactions, 
+              receivables: nextTsReceivables, 
+              updatedRecurring: [updatedRule] 
+          } 
+      });
+  };
+
+  const handleSaveRecurring = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!editingRecurring) return;
+      if (!recDebitAcc) { alert("Please select a Debit account."); return; }
+      
+      const updatedRule: RecurringTransaction = {
+          ...editingRecurring,
+          note: recNote,
+          amount: parseFloat(recAmount) || 0,
+          frequency: recFreq,
+          nextDueDate: new Date(recNextDate).toISOString(),
+          accountId: recDebitAcc,
+          paymentAccountId: recCreditAcc || undefined,
+          generationType: recGenerationType,
+          receivableType: recReceivableType,
+          dueDays: parseInt(recDueDays) || 0,
+          active: recActive
+      };
+      
+      dispatch({ type: 'UPDATE_RECURRING', payload: updatedRule });
+      setIsRecurringModalOpen(false);
+      setEditingRecurring(null);
   };
 
   const handleDelete = (type: string, id: string) => { 
@@ -566,7 +718,9 @@ export const Settings: React.FC = () => {
       {activeTab === 'recurring' && (
           <div className="space-y-4 animate-fade-in">
               {state.recurring.map(rule => {
-                  const accName = state.accounts.find(a => a.id === rule.accountId)?.name;
+                  const debitName = state.accounts.find(a => a.id === rule.accountId)?.name || 'Unknown';
+                  const creditName = rule.paymentAccountId ? (state.accounts.find(a => a.id === rule.paymentAccountId)?.name || 'None') : 'None';
+                  
                   return (
                       <div key={rule.id} className="bg-gray-900 border border-gray-800 p-5 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4 hover:border-gray-700 hover:shadow-lg transition-all">
                           <div className="flex items-center gap-4 w-full md:w-auto">
@@ -575,8 +729,8 @@ export const Settings: React.FC = () => {
                               </div>
                               <div>
                                   <h4 className="font-bold text-gray-200">{rule.note || 'Untitled Recurring'}</h4>
-                                  <p className="text-xs text-gray-500 mt-1">
-                                      {accName} • <span className="uppercase text-purple-300">{rule.frequency}</span>
+                                  <p className="text-xs text-gray-500 mt-1 font-mono">
+                                      Dr. <span className="text-gray-300">{debitName}</span> | Cr. <span className="text-gray-300">{creditName}</span> • <span className="uppercase text-purple-300">{rule.frequency}</span>
                                   </p>
                               </div>
                           </div>
@@ -585,9 +739,17 @@ export const Settings: React.FC = () => {
                                   <p className="font-bold text-lg text-white">{rule.currency} {rule.amount.toLocaleString()}</p>
                                   <p className="text-xs text-gray-500">Next: {format(parseISO(rule.nextDueDate), 'MMM d, yyyy')}</p>
                               </div>
-                              <button onClick={() => handleDelete('RECURRING', rule.id)} className="p-2 text-gray-500 hover:text-red-400 bg-gray-800 hover:bg-gray-700 rounded-lg active:scale-90 transition-transform">
-                                  <Trash2 size={18} />
-                              </button>
+                              <div className="flex gap-2">
+                                  <button onClick={() => handleManualTrigger(rule)} className="p-2 text-gray-500 hover:text-emerald-400 bg-gray-800 hover:bg-gray-700 rounded-lg active:scale-90 transition-transform cursor-pointer" title="Trigger Now">
+                                      <RefreshCw size={18} />
+                                  </button>
+                                  <button onClick={() => handleEditRecurring(rule)} className="p-2 text-gray-500 hover:text-blue-400 bg-gray-800 hover:bg-gray-700 rounded-lg active:scale-90 transition-transform cursor-pointer" title="Edit">
+                                      <Pencil size={18} />
+                                  </button>
+                                  <button onClick={() => handleDelete('RECURRING', rule.id)} className="p-2 text-gray-500 hover:text-red-400 bg-gray-800 hover:bg-gray-700 rounded-lg active:scale-90 transition-transform cursor-pointer">
+                                      <Trash2 size={18} />
+                                  </button>
+                              </div>
                           </div>
                       </div>
                   );
@@ -712,6 +874,93 @@ export const Settings: React.FC = () => {
               onSaveTemplate={handleSaveTemplate}
               onComplete={() => {}} // Handled inside wrapper
           />
+      </Modal>
+
+      <Modal isOpen={isRecurringModalOpen} onClose={() => setIsRecurringModalOpen(false)} title="Edit Recurring Rule">
+          {editingRecurring && (
+              <form onSubmit={handleSaveRecurring} className="space-y-4">
+                  <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Description</label>
+                      <input className="w-full px-4 py-2 bg-gray-950 text-white border border-gray-700 rounded-xl focus:border-primary outline-none" value={recNote} onChange={e => setRecNote(e.target.value)} required placeholder="e.g. Office Rent" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                      <div>
+                          <label className="block text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1.5">Debit Account (Expense/Asset)</label>
+                          <SearchableSelect options={availableAccounts} value={recDebitAcc} onChange={setRecDebitAcc} placeholder="Select Debit..." required />
+                      </div>
+                      <div>
+                          <label className="block text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1.5">Credit Account (From)</label>
+                          <SearchableSelect options={[{id: '', label: 'None'}, ...availableAccounts]} value={recCreditAcc} onChange={setRecCreditAcc} placeholder="Select Credit..." />
+                      </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                      <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Amount ({editingRecurring.currency})</label>
+                          <input type="number" step="0.01" className="w-full px-4 py-2 bg-gray-950 text-white border border-gray-700 rounded-xl focus:border-primary outline-none" value={recAmount} onChange={e => setRecAmount(e.target.value)} required />
+                      </div>
+                      <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Frequency</label>
+                          <select className="w-full px-4 py-2 bg-gray-950 text-white border border-gray-700 rounded-xl focus:border-primary outline-none" value={recFreq} onChange={e => setRecFreq(e.target.value as RecurrenceFrequency)}>
+                              <option value="daily">Daily</option>
+                              <option value="weekly">Weekly</option>
+                              <option value="monthly">Monthly</option>
+                              <option value="yearly">Yearly</option>
+                          </select>
+                      </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                      <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Next Due Date</label>
+                          <input type="date" className="w-full px-4 py-2 bg-gray-950 text-white border border-gray-700 rounded-xl focus:border-primary outline-none" value={recNextDate} onChange={e => setRecNextDate(e.target.value)} required />
+                      </div>
+                      <div className="flex flex-col justify-center">
+                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Status</label>
+                           <label className="flex items-center gap-3 cursor-pointer group">
+                               <div className={`w-12 h-6 rounded-full relative transition-colors ${recActive ? 'bg-emerald-600' : 'bg-gray-800'}`}>
+                                   <input type="checkbox" checked={recActive} onChange={e => setRecActive(e.target.checked)} className="sr-only" />
+                                   <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${recActive ? 'translate-x-6' : 'translate-x-0'}`} />
+                               </div>
+                               <span className={`text-sm font-bold ${recActive ? 'text-emerald-400' : 'text-gray-500'}`}>{recActive ? 'Active' : 'Paused'}</span>
+                           </label>
+                      </div>
+                  </div>
+                  
+                  {/* GENERATION SETTINGS */}
+                  <div className="pt-4 border-t border-gray-800">
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">When Rule Executes, Generate A:</label>
+                      <div className="flex gap-4">
+                          <label className="flex items-center gap-2 text-white">
+                              <input type="radio" name="recGen" value="transaction" checked={recGenerationType === 'transaction'} onChange={() => setRecGenerationType('transaction')} />
+                              Raw Transaction
+                          </label>
+                          <label className="flex items-center gap-2 text-white">
+                              <input type="radio" name="recGen" value="receivable" checked={recGenerationType === 'receivable'} onChange={() => setRecGenerationType('receivable')} />
+                              Invoice / Bill (Accrual)
+                          </label>
+                      </div>
+                  </div>
+                  
+                  {recGenerationType === 'receivable' && (
+                      <div className="grid grid-cols-2 gap-4 animate-fade-in bg-blue-900/10 p-4 rounded-xl border border-blue-500/20">
+                          <div>
+                              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Type</label>
+                              <select className="w-full px-4 py-2 bg-gray-950 text-white border border-gray-700 rounded-xl focus:border-primary outline-none" value={recReceivableType} onChange={e => setRecReceivableType(e.target.value as 'invoice'|'bill')}>
+                                  <option value="invoice">Invoice (AR)</option>
+                                  <option value="bill">Bill (AP)</option>
+                              </select>
+                          </div>
+                          <div>
+                              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Due in (Days)</label>
+                              <input type="number" min="0" className="w-full px-4 py-2 bg-gray-950 text-white border border-gray-700 rounded-xl focus:border-primary outline-none" value={recDueDays} onChange={e => setRecDueDays(e.target.value)} />
+                          </div>
+                      </div>
+                  )}
+
+                  <button type="submit" className="w-full py-3 bg-primary hover:bg-blue-600 text-white rounded-xl font-bold transition-all shadow-lg shadow-blue-900/30 active:scale-[0.98]">
+                      Save Changes
+                  </button>
+              </form>
+          )}
       </Modal>
     </div>
   );

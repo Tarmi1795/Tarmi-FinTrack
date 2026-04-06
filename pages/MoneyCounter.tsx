@@ -3,18 +3,22 @@ import { useFinance } from '../context/FinanceContext';
 import { supabase } from '../services/supabase';
 import { Denomination, CashCount } from '../types';
 import { DenominationManager } from '../components/DenominationManager';
-import { Calculator, Settings, RefreshCw, Save, History, ChevronRight } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Calculator, Settings, RefreshCw, Save, History, ChevronRight, AlertCircle, TrendingUp, TrendingDown, Scale } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { calculateDirectBalance } from '../utils/accountHierarchy';
 
 export const MoneyCounter: React.FC = () => {
-  const { user } = useFinance();
+  const { user, state } = useFinance();
   const [denominations, setDenominations] = useState<Denomination[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [showManager, setShowManager] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showConfirmClear, setShowConfirmClear] = useState(false);
+  const [showLedgerComparison, setShowLedgerComparison] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [recentCounts, setRecentCounts] = useState<any[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const fetchDenominations = async () => {
@@ -57,8 +61,26 @@ export const MoneyCounter: React.FC = () => {
     }
   };
 
+  const fetchRecentCounts = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('cash_counts')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      if (error) throw error;
+      setRecentCounts(data || []);
+    } catch (error) {
+      console.error("Error fetching recent counts:", error);
+    }
+  };
+
   useEffect(() => {
     fetchDenominations();
+    fetchRecentCounts();
   }, [user]);
 
   const handleCountChange = (id: string, value: string) => {
@@ -75,6 +97,12 @@ export const MoneyCounter: React.FC = () => {
     const count = counts[d.id] || 0;
     return sum + (count * d.value);
   }, 0);
+
+  // Ledger Comparison Logic
+  const cashAccount = state.accounts.find(a => a.code === '1002' || a.name.toLowerCase().includes('cash on hand') || a.id === 'asset_cash');
+  const ledgerBalance = cashAccount ? calculateDirectBalance(cashAccount.id, state.transactions, 'debit') : 0;
+  const variance = totalAmount - ledgerBalance;
+  const varianceColor = variance === 0 ? 'text-emerald-500' : variance > 0 ? 'text-blue-400' : 'text-red-400';
 
   const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
     if (e.key === 'Enter' || e.key === 'NumpadEnter') {
@@ -114,6 +142,7 @@ export const MoneyCounter: React.FC = () => {
       setToastMessage("Cash count saved successfully!");
       setTimeout(() => setToastMessage(null), 3000);
       setCounts({});
+      fetchRecentCounts(); // Refresh history after save
     } catch (error) {
       console.error("Error saving cash count:", error);
       setToastMessage("Failed to save cash count.");
@@ -121,6 +150,13 @@ export const MoneyCounter: React.FC = () => {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const loadPastCount = (pastCount: any) => {
+    setCounts(pastCount.breakdown || {});
+    setShowHistory(false);
+    setToastMessage(`Loaded count from ${new Date(pastCount.created_at).toLocaleDateString()}`);
+    setTimeout(() => setToastMessage(null), 2000);
   };
 
   if (isLoading) {
@@ -144,25 +180,125 @@ export const MoneyCounter: React.FC = () => {
           </h1>
           <p className="text-sm text-gray-400 mt-1">Calculate physical cash totals quickly</p>
         </div>
-        <button 
-          onClick={() => setShowManager(true)}
-          className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl transition-colors"
-          title="Manage Denominations"
-        >
-          <Settings size={20} />
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <button 
+              onClick={() => setShowHistory(!showHistory)}
+              className={`p-2 rounded-xl transition-colors flex items-center gap-2 ${showHistory ? 'bg-gold-500 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
+              title="Recent Counts"
+            >
+              <History size={20} />
+              {recentCounts.length > 0 && (
+                <span className="hidden md:inline text-xs font-bold uppercase tracking-widest">History</span>
+              )}
+            </button>
+
+            <AnimatePresence>
+              {showHistory && (
+                <>
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                    className="absolute right-0 mt-3 w-72 bg-gray-900 border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                  >
+                    <div className="p-4 border-b border-white/5 bg-gray-800/30">
+                      <h3 className="text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                        <History size={14} className="text-gold-500" /> Recent Counts
+                      </h3>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto divide-y divide-white/5">
+                      {recentCounts.length === 0 && (
+                        <div className="p-8 text-center text-gray-500 text-sm italic">
+                          No previous counts found
+                        </div>
+                      )}
+                      {recentCounts.map((rc) => (
+                        <button
+                          key={rc.id}
+                          onClick={() => loadPastCount(rc)}
+                          className="w-full p-4 text-left hover:bg-white/5 transition-colors group"
+                        >
+                          <div className="flex justify-between items-start mb-1">
+                            <span className="text-xs text-gray-400 font-mono">
+                              {new Date(rc.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            <ChevronRight size={14} className="text-gray-600 group-hover:text-gold-500 transition-colors" />
+                          </div>
+                          <div className="text-lg font-bold text-white font-mono">
+                            {rc.total_amount.toLocaleString()} <span className="text-xs text-gold-600 ml-1">{rc.currency_code}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setShowHistory(false)}
+                  />
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <button 
+            onClick={() => setShowManager(true)}
+            className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl transition-colors"
+            title="Manage Denominations"
+          >
+            <Settings size={20} />
+          </button>
+        </div>
       </div>
 
       {/* Sticky Total Header */}
-      <div className="sticky top-0 z-10 bg-gray-900/90 backdrop-blur-md border border-white/10 rounded-2xl p-6 mb-8 shadow-2xl shadow-black/50">
-        <div className="text-center">
-          <p className="text-sm text-gray-400 uppercase tracking-widest font-semibold mb-2">Grand Total</p>
-          <div className="text-5xl font-bold text-gold-gradient font-mono tracking-tight">
-            {totalAmount.toLocaleString()} <span className="text-2xl text-gold-600 ml-1">{activeDenominations[0]?.currency_code || 'QAR'}</span>
+      <div className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur-md border border-white/10 rounded-2xl p-6 mb-8 shadow-2xl shadow-black/50">
+        <div className="flex flex-col md:flex-row gap-6 items-center justify-between">
+          <div className="text-center md:text-left flex-1">
+            <p className="text-xs text-gray-400 uppercase tracking-widest font-bold mb-2 flex items-center gap-2 justify-center md:justify-start">
+              <Calculator size={14} className="text-gold-500" /> Physical Cash Count
+            </p>
+            <div className="text-5xl font-bold text-gold-gradient font-mono tracking-tight">
+              {totalAmount.toLocaleString()} <span className="text-2xl text-gold-600 ml-1">{activeDenominations[0]?.currency_code || 'QAR'}</span>
+            </div>
           </div>
+
+          <AnimatePresence>
+            {showLedgerComparison && cashAccount && (
+              <motion.div 
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                className="bg-gray-800/50 border border-white/5 rounded-xl p-4 flex-1 w-full md:max-w-xs"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold text-gray-400 uppercase flex items-center gap-1">
+                    <Scale size={12} className="text-gold-500" /> Ledger Check
+                  </span>
+                  <span className="text-[10px] bg-gray-700 text-gray-300 px-2 py-0.5 rounded-full font-mono">
+                    {cashAccount.code}
+                  </span>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-400">System Balance</span>
+                    <span className="text-white font-mono font-medium">{ledgerBalance.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm border-t border-white/5 pt-2">
+                    <span className="text-gray-400">Variance</span>
+                    <span className={`font-mono font-bold flex items-center gap-1 ${varianceColor}`}>
+                      {variance > 0 ? <TrendingUp size={14} /> : variance < 0 ? <TrendingDown size={14} /> : null}
+                      {variance === 0 ? 'MATCH' : (variance > 0 ? '+' : '') + variance.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
         
-        <div className="flex gap-3 mt-6 justify-center">
+        <div className="flex gap-3 mt-6 justify-center md:justify-start">
           <button 
             onClick={handleClear}
             disabled={totalAmount === 0}

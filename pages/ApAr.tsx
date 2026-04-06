@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { Receivable, Transaction, CurrencyCode, RecurrenceFrequency } from '../types';
+import { Receivable, Transaction, CurrencyCode, RecurrenceFrequency, RecurringTransaction } from '../types';
 import { EXCHANGE_RATE_QAR_TO_PHP } from '../constants';
 import { format, isPast, addDays, addWeeks, addMonths, addYears, parseISO, endOfDay } from 'date-fns';
 import { Plus, CheckCircle, ArrowUpRight, ArrowDownLeft, Repeat, Pencil, Trash2, HandCoins, FileText, Filter, Copy, RefreshCw, Users, Info } from 'lucide-react';
@@ -170,6 +170,8 @@ export const ApAr: React.FC = () => {
       const newId = editingId || Math.random().toString(36).substr(2, 9);
       
       const validIssueDate = issueDate ? new Date(issueDate).toISOString() : new Date().toISOString();
+      const existing = editingId ? state.receivables.find(r => r.id === editingId) : null;
+      const ruleId = existing?.recurring?.ruleId || Math.random().toString(36).substr(2, 9);
 
       const payload: Receivable = {
           id: newId,
@@ -186,18 +188,110 @@ export const ApAr: React.FC = () => {
           dueDate: new Date(dueDate).toISOString(),
           status: 'pending',
           notes,
-          recurring: isRecurring ? { active: true, amount: val, frequency: recurFreq, nextDueDate: dueDate } : undefined
+          recurring: isRecurring ? { 
+            active: true, 
+            amount: val, 
+            frequency: recurFreq, 
+            nextDueDate: dueDate,
+            ruleId: ruleId 
+          } : undefined
       };
 
       if (editingId) {
           // Preserve existing payments on edit
-          const existing = state.receivables.find(r => r.id === editingId);
           payload.paidAmount = existing?.paidAmount || 0;
           if (payload.paidAmount >= payload.amount) payload.status = 'paid';
           dispatch({ type: 'UPDATE_RECEIVABLE', payload });
+
+          // SYNC UPDATE to Recurring Rule
+          if (isRecurring && ruleId) {
+             const existingRule = state.recurring.find(r => r.id === ruleId);
+             if (existingRule) {
+               dispatch({ 
+                 type: 'UPDATE_RECURRING', 
+                 payload: { 
+                   ...existingRule, 
+                   amount: payload.amount, 
+                   originalAmount: payload.originalAmount,
+                   note:  `${formMode === 'receivable' ? 'Invoice' : 'Bill'}: ${party?.name || 'Unknown'}${notes ? ' - ' + notes : ''}`,
+                   frequency: recurFreq,
+                   accountId: targetAccountId,
+                   partyId: partyId
+                 } 
+               });
+             } else {
+               // If rule disappeared for some reason, re-add
+               const dDate = new Date(dueDate + 'T00:00:00.000Z');
+               let nextRecDueDate = dDate;
+               if (recurFreq === 'daily') nextRecDueDate = addDays(dDate, 1);
+               if (recurFreq === 'weekly') nextRecDueDate = addWeeks(dDate, 1);
+               if (recurFreq === 'monthly') nextRecDueDate = addMonths(dDate, 1);
+               if (recurFreq === 'yearly') nextRecDueDate = addYears(dDate, 1);
+               const issueDDate = issueDate ? new Date(issueDate + 'T00:00:00.000Z') : new Date();
+               const dueDaysDiff = Math.max(0, Math.floor((dDate.getTime() - issueDDate.getTime()) / (1000 * 60 * 60 * 24)));
+
+               const newRule: RecurringTransaction = {
+                   id: ruleId,
+                   note: `${formMode === 'receivable' ? 'Invoice' : 'Bill'}: ${party?.name || 'Unknown'}${notes ? ' - ' + notes : ''}`,
+                   amount: payload.amount,
+                   originalAmount: payload.originalAmount,
+                   currency: payload.currency,
+                   accountId: targetAccountId,
+                   paymentAccountId: undefined,
+                   partyId: partyId,
+                   type: formMode === 'receivable' ? 'income' : 'expense',
+                   source: formMode === 'receivable' ? 'side_hustle' : 'personal',
+                   frequency: recurFreq,
+                   nextDueDate: nextRecDueDate.toISOString(),
+                   generationType: 'receivable',
+                   receivableType: formSubMode === 'loan' ? (formMode === 'receivable' ? 'invoice' : 'bill') : (formSubMode as 'invoice'|'bill'),
+                   dueDays: dueDaysDiff,
+                   active: true
+               };
+               dispatch({ type: 'ADD_RECURRING', payload: newRule });
+             }
+          } else if (!isRecurring && ruleId) {
+             // Unchecked Recurring: Delete the Rule
+             dispatch({ type: 'DELETE_RECURRING', payload: ruleId });
+          }
+
       } else {
           dispatch({ type: 'ADD_RECEIVABLE', payload });
           createAccrualTransaction(payload, newId);
+
+          if (isRecurring) {
+              const dDate = new Date(dueDate + 'T00:00:00.000Z');
+              let nextRecDueDate = dDate;
+              if (recurFreq === 'daily') nextRecDueDate = addDays(dDate, 1);
+              if (recurFreq === 'weekly') nextRecDueDate = addWeeks(dDate, 1);
+              if (recurFreq === 'monthly') nextRecDueDate = addMonths(dDate, 1);
+              if (recurFreq === 'yearly') nextRecDueDate = addYears(dDate, 1);
+
+              // Calculate dueDays based on difference between issueDate and dueDate
+              const issueDDate = issueDate ? new Date(issueDate + 'T00:00:00.000Z') : new Date();
+              const dueDaysDiff = Math.max(0, Math.floor((dDate.getTime() - issueDDate.getTime()) / (1000 * 60 * 60 * 24)));
+
+              const rule: RecurringTransaction = {
+                  id: ruleId,
+                  note: `${formMode === 'receivable' ? 'Invoice' : 'Bill'}: ${party?.name || 'Unknown'}${notes ? ' - ' + notes : ''}`,
+                  amount: payload.amount,
+                  originalAmount: payload.originalAmount,
+                  currency: payload.currency,
+                  accountId: targetAccountId,
+                  paymentAccountId: undefined,
+                  partyId: partyId,
+                  type: formMode === 'receivable' ? 'income' : 'expense',
+                  source: formMode === 'receivable' ? 'side_hustle' : 'personal',
+                  frequency: recurFreq,
+                  nextDueDate: nextRecDueDate.toISOString(),
+                  generationType: 'receivable',
+                  receivableType: formSubMode === 'loan' ? (formMode === 'receivable' ? 'invoice' : 'bill') : (formSubMode as 'invoice'|'bill'),
+                  dueDays: dueDaysDiff,
+                  active: true
+              };
+              
+              dispatch({ type: 'ADD_RECURRING', payload: rule });
+          }
       }
       setIsFormOpen(false);
   };
@@ -234,7 +328,9 @@ export const ApAr: React.FC = () => {
             
           paymentAccountId: item.type === 'receivable'
             ? item.targetAccountId // Cr Bank (for Loan) or Revenue
-            : partyLinkedAccount // Cr Party AP
+            : partyLinkedAccount, // Cr Party AP
+          
+          receivableId: id
       };
       
       dispatch({ type: 'ADD_TRANSACTION', payload: tx });
@@ -257,8 +353,12 @@ export const ApAr: React.FC = () => {
   };
 
   const handleDelete = (id: string) => {
-      if(confirm("Delete this record? Associated Journal Entries will be removed.")) {
+      const item = state.receivables.find(r => r.id === id);
+      if(confirm("Delete this record? Associated Journal Entries and Recurring rules will be removed.")) {
           dispatch({ type: 'DELETE_RECEIVABLE', payload: id });
+          if (item?.recurring?.ruleId) {
+             dispatch({ type: 'DELETE_RECURRING', payload: item.recurring.ruleId });
+          }
       }
   };
 
@@ -317,7 +417,8 @@ export const ApAr: React.FC = () => {
           note: `Settlement (${isFullyPaid ? 'Full' : 'Partial'}): ${item.subType} Ref:${item.id}`,
           type: txType,
           accountId: item.type === 'receivable' ? paymentAccountId : (partyLinkedAccount || ''),
-          paymentAccountId: item.type === 'receivable' ? (partyLinkedAccount || '') : paymentAccountId
+          paymentAccountId: item.type === 'receivable' ? (partyLinkedAccount || '') : paymentAccountId,
+          receivableId: item.id
       };
 
       if (partyLinkedAccount) {
@@ -372,7 +473,8 @@ export const ApAr: React.FC = () => {
                   note: `Accrual (Auto): ${item.subType} Ref:${nextId}`,
                   type: nextTxType,
                   accountId: item.type === 'receivable' ? (partyLinkedAccount || '') : item.targetAccountId,
-                  paymentAccountId: item.type === 'receivable' ? item.targetAccountId : (partyLinkedAccount || '')
+                  paymentAccountId: item.type === 'receivable' ? item.targetAccountId : (partyLinkedAccount || ''),
+                  receivableId: nextId
               };
               if (partyLinkedAccount) {
                   dispatch({ type: 'ADD_TRANSACTION', payload: nextAccrualTx });

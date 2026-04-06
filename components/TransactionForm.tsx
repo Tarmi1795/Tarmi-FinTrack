@@ -67,6 +67,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   // Recurrence State (Transaction Mode Only)
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurFreq, setRecurFreq] = useState<RecurrenceFrequency>('monthly');
+  const [recGenType, setRecGenType] = useState<'transaction' | 'receivable'>('transaction');
+  const [recRecType, setRecRecType] = useState<'invoice' | 'bill'>(initialType === 'income' ? 'invoice' : 'bill');
+  const [recDueDays, setRecDueDays] = useState('0');
   
   const [viewMode, setViewMode] = useState<'form' | 'pos'>('pos');
 
@@ -311,7 +314,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 partyId: partyId || undefined,
                 note: note,
                 frequency: recurFreq,
-                nextDueDate: nextDate.toISOString()
+                nextDueDate: nextDate.toISOString(),
+                generationType: recGenType,
+                receivableType: recGenType === 'receivable' ? recRecType : undefined,
+                dueDays: recGenType === 'receivable' ? parseInt(recDueDays) || 0 : undefined
             };
 
             dispatch({ type: 'ADD_RECURRING', payload: recurringRule });
@@ -586,19 +592,53 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                             </label>
                         </div>
                         {isRecurring && (
-                            <div className="flex items-center gap-3 animate-fade-in pl-8 mt-2">
-                                <span className="text-xs text-gray-500 font-bold uppercase tracking-wider">Interval:</span>
-                                <select 
-                                    className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-xl text-white text-xs outline-none focus:border-gold-500 font-bold uppercase" 
-                                    value={recurFreq} 
-                                    onChange={e => setRecurFreq(e.target.value as RecurrenceFrequency)}
-                                >
-                                    <option value="daily">Daily</option>
-                                    <option value="weekly">Weekly</option>
-                                    <option value="monthly">Monthly</option>
-                                    <option value="yearly">Yearly</option>
-                                </select>
-                            </div>
+                            <>
+                                <div className="flex items-center gap-3 animate-fade-in pl-8 mt-2">
+                                    <span className="text-xs text-gray-500 font-bold uppercase tracking-wider">Interval:</span>
+                                    <select 
+                                        className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-xl text-white text-xs outline-none focus:border-gold-500 font-bold uppercase" 
+                                        value={recurFreq} 
+                                        onChange={e => setRecurFreq(e.target.value as RecurrenceFrequency)}
+                                    >
+                                        <option value="daily">Daily</option>
+                                        <option value="weekly">Weekly</option>
+                                        <option value="monthly">Monthly</option>
+                                        <option value="yearly">Yearly</option>
+                                    </select>
+                                </div>
+                                
+                                <div className="animate-fade-in pl-8 mt-4 space-y-3 border-t border-gray-800 pt-3">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Generate As:</label>
+                                        <div className="flex gap-4">
+                                            <label className="flex items-center gap-2 text-xs text-white cursor-pointer">
+                                                <input type="radio" checked={recGenType === 'transaction'} onChange={() => setRecGenType('transaction')} className="w-3 h-3" />
+                                                Direct Ledger
+                                            </label>
+                                            <label className="flex items-center gap-2 text-xs text-white cursor-pointer">
+                                                <input type="radio" checked={recGenType === 'receivable'} onChange={() => setRecGenType('receivable')} className="w-3 h-3" />
+                                                Accrual (Inv/Bill)
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {recGenType === 'receivable' && (
+                                        <div className="grid grid-cols-2 gap-3 p-3 bg-blue-900/10 rounded-xl border border-blue-500/20">
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Type</label>
+                                                <select className="w-full px-2 py-1.5 bg-gray-950 border border-gray-700 rounded-lg text-[10px] text-white font-bold" value={recRecType} onChange={e => setRecRecType(e.target.value as 'invoice'|'bill')}>
+                                                    <option value="invoice">Invoice</option>
+                                                    <option value="bill">Bill</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Days Due</label>
+                                                <input type="number" min="0" className="w-full px-2 py-1.5 bg-gray-950 border border-gray-700 rounded-lg text-[10px] text-white" value={recDueDays} onChange={e => setRecDueDays(e.target.value)} />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </>
                         )}
                     </div>
                 )}
