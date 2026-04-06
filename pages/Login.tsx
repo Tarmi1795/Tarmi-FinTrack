@@ -169,7 +169,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white flex flex-col md:flex-row overflow-hidden relative font-inter selection:bg-gold-500/30">
+    <div className="min-h-screen bg-[#12100d] text-white flex flex-col md:flex-row overflow-hidden relative font-inter selection:bg-gold-500/30">
         
         {/* --- LEFT SIDE: THE GOLDEN DOHA HERO --- */}
         <div className="hidden md:flex w-[60%] relative flex-col justify-end p-16 overflow-hidden bg-gray-900 shadow-[20px_0_50px_rgba(0,0,0,0.5)] z-10">
@@ -284,9 +284,9 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         </div>
 
         {/* --- RIGHT SIDE: AUTHENTICATION --- */}
-        <div className="w-full md:w-[40%] relative bg-[#050505] flex items-center justify-center p-6 perspective-[1000px] overflow-hidden">
+        <div className="w-full md:w-[40%] relative bg-[#12100d] flex items-center justify-center p-6 perspective-[1000px] overflow-hidden">
             {/* Dark/Gold Gradient Mesh Background */}
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-gold-900/20 via-[#050505] to-[#050505]"></div>
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-gold-900/20 via-[#12100d] to-[#12100d]"></div>
             
             {/* The Hanging Mechanism */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[300px] sm:w-[380px] h-[140px] flex justify-between px-8 z-20 pointer-events-none">

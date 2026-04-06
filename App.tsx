@@ -20,7 +20,7 @@ const AppContent: React.FC = () => {
 
   if (authLoading) {
       return (
-          <div className="min-h-screen bg-[#12110d] flex items-center justify-center">
+          <div className="min-h-screen bg-[#12100d] flex items-center justify-center">
               <div className="animate-pulse text-gold-500 font-bold tracking-widest text-xl">LOADING TARMI...</div>
           </div>
       );
