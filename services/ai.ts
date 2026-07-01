@@ -31,11 +31,11 @@ export const aiService = {
   askCFO: async (query: string, state: AppState): Promise<string> => {
     const key = getApiKey();
     if (!key) {
-      console.warn("Arlene: No API Key found in environment.");
+      console.warn("AI_riane: No API Key found in environment.");
       return "AI service is not configured (Missing API Key). Please check your Settings.";
     }
 
-    console.log(`Arlene: Using API Key (length: ${key.length}, starts with: ${key.substring(0, 3)}...)`);
+    console.log(`AI_riane: Using API Key (length: ${key.length}, starts with: ${key.substring(0, 3)}...)`);
 
     try {
       const ai = new GoogleGenAI({ apiKey: key });
@@ -45,7 +45,7 @@ export const aiService = {
 
       // 2. System Instruction
       const systemInstruction = `
-        You are Arlene, an expert AI CFO for "Tarmi FinTrack".
+        You are AI_riane, an expert AI CFO for "Tarmi FinTrack".
         
         DATA STRUCTURE:
         You have access to the full raw database in JSON format:
@@ -58,7 +58,7 @@ export const aiService = {
         - Today's date is ${format(new Date(), 'yyyy-MM-dd')}.
         - You must calculate totals dynamically from the "transactions" list.
         - If the user asks for "profit", calculate (Total Revenue - Total Expense).
-        - If the user asks about a specific person (e.g., "How much do I owe Arlene?"), check the "receivables" list.
+        - If the user asks about a specific person (e.g., "How much do I owe AI_riane?"), check the "receivables" list.
         - Be concise and actionable.
       `;
 
@@ -91,18 +91,18 @@ export const aiService = {
 
       // Check for the specific "unregistered callers" error which usually means the key is being sent but is invalid/empty
       if (errorMessage.includes("unregistered callers") || errorMessage.includes("403")) {
-        return `Arlene: I'm having trouble with the API key. It looks like it's being sent (length ${key.length}), but Google is rejecting it. Please make sure you copied the FULL key from AI Studio and that it's named GEMINI_API_KEY in your Settings.`;
+        return `AI_riane: I'm having trouble with the API key. It looks like it's being sent (length ${key.length}), but Google is rejecting it. Please make sure you copied the FULL key from AI Studio and that it's named GEMINI_API_KEY in your Settings.`;
       }
 
       if (errorMessage.includes("API_KEY_INVALID") || errorMessage.includes("invalid API key")) {
-        return "Arlene: The API key provided is invalid. Please double-check it in your Settings.";
+        return "AI_riane: The API key provided is invalid. Please double-check it in your Settings.";
       }
 
       if (errorMessage.includes("quota") || errorMessage.includes("429")) {
-        return "Arlene: I've hit my usage limit. Please try again in a minute!";
+        return "AI_riane: I've hit my usage limit. Please try again in a minute!";
       }
 
-      return `Arlene encountered an error: ${errorMessage.substring(0, 150)}`;
+      return `AI_riane encountered an error: ${errorMessage.substring(0, 150)}`;
     }
   }
 };

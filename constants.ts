@@ -36,7 +36,9 @@ export const CURRENCIES: CurrencyOption[] = [
 ];
 
 // Supabase Credentials
+// @ts-ignore
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://hdwpzyfvabljqvtxjfsg.supabase.co";
+// @ts-ignore
 export const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 
 // Helper to generate IDs

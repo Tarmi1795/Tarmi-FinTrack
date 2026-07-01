@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useFinance } from '../context/FinanceContext';
 import { aiService } from '../services/ai';
 
-const ArleneIcon = ({ size = 24, className = "" }) => (
+const AiRianeIcon = ({ size = 24, className = "" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <rect x="4" y="8" width="16" height="11" rx="3" />
     <path d="M12 8V5" />
@@ -31,24 +31,35 @@ export const AIChat: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', text: 'Hello! I am Arlene, your AI CFO. Ask me about your receivables, budget, or spending trends.' }
+    { role: 'assistant', text: 'Hello! I am AI_riane, your AI CFO. Ask me about your receivables, budget, or spending trends.' }
   ]);
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const [snapPos, setSnapPos] = useState({ 
-    x: typeof window !== 'undefined' ? window.innerWidth - BUTTON_SIZE - PADDING : 0, 
-    y: typeof window !== 'undefined' ? window.innerHeight - BUTTON_SIZE - PADDING : 0 
-  });
+  const getInitialPos = () => {
+    if (typeof window === 'undefined') return { x: 0, y: 0 };
+    const isMobile = window.innerWidth < 768;
+    const safeBottom = isMobile ? 34 : 0;
+    const safeRight = isMobile ? 16 : 0;
+    return {
+      x: window.innerWidth - BUTTON_SIZE - PADDING - safeRight,
+      y: window.innerHeight - BUTTON_SIZE - PADDING - safeBottom
+    };
+  };
+
+  const [snapPos, setSnapPos] = useState(getInitialPos);
 
   useEffect(() => {
     const handleResize = () => {
       setSnapPos(prev => {
+        const isMobile = window.innerWidth < 768;
+        const safeBottom = isMobile ? 34 : 0;
+        const safeRight = isMobile ? 16 : 0;
         const isRight = prev.x > window.innerWidth / 2;
         const isBottom = prev.y > window.innerHeight / 2;
         return {
-          x: isRight ? window.innerWidth - BUTTON_SIZE - PADDING : PADDING,
-          y: isBottom ? window.innerHeight - BUTTON_SIZE - PADDING : PADDING
+          x: isRight ? window.innerWidth - BUTTON_SIZE - PADDING - safeRight : PADDING + safeRight,
+          y: isBottom ? window.innerHeight - BUTTON_SIZE - PADDING - safeBottom : PADDING
         };
       });
     };
@@ -60,10 +71,13 @@ export const AIChat: React.FC = () => {
     const { point } = info;
     const midX = window.innerWidth / 2;
     const midY = window.innerHeight / 2;
+    const isMobile = window.innerWidth < 768;
+    const safeBottom = isMobile ? 34 : 0;
+    const safeRight = isMobile ? 16 : 0;
 
     setSnapPos({
-      x: point.x < midX ? PADDING : window.innerWidth - BUTTON_SIZE - PADDING,
-      y: point.y < midY ? PADDING : window.innerHeight - BUTTON_SIZE - PADDING
+      x: point.x < midX ? PADDING + safeRight : window.innerWidth - BUTTON_SIZE - PADDING - safeRight,
+      y: point.y < midY ? PADDING : window.innerHeight - BUTTON_SIZE - PADDING - safeBottom
     });
   };
 
@@ -103,7 +117,7 @@ export const AIChat: React.FC = () => {
             exit={{ scale: 0, opacity: 0 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
           >
-            <ArleneIcon size={32} />
+            <AiRianeIcon size={32} />
           </motion.button>
         )}
       </AnimatePresence>
@@ -117,16 +131,16 @@ export const AIChat: React.FC = () => {
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-4 right-4 md:bottom-8 md:right-8 w-[90vw] md:w-[400px] h-[500px] max-h-[80vh] bg-gray-950 border border-gold-500/20 rounded-2xl shadow-2xl flex flex-col z-[10000] backdrop-blur-xl overflow-hidden"
+            className="fixed bottom-4 right-4 md:bottom-8 md:right-8 w-[90vw] md:w-[400px] h-[500px] max-h-[80vh] bg-gray-950 border border-gold-500/20 rounded-2xl shadow-2xl flex flex-col z-[10000] backdrop-blur-xl overflow-hidden chat-safe-layout"
           >
             {/* Header */}
             <div className="chat-header flex items-center justify-between p-4 border-b border-gray-800 bg-gray-900/50 cursor-move">
               <div className="flex items-center gap-2 pointer-events-none">
                 <div className="p-2 bg-gold-500/10 rounded-lg">
-                  <ArleneIcon size={20} className="text-gold-500" />
+                  <AiRianeIcon size={20} className="text-gold-500" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-gray-100">Arlene</h3>
+                  <h3 className="text-sm font-bold text-gray-100">AI_riane</h3>
                   <p className="text-[10px] text-green-400 flex items-center gap-1"><span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"/> Online</p>
                 </div>
               </div>
@@ -141,7 +155,7 @@ export const AIChat: React.FC = () => {
               <div key={idx} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {msg.role === 'assistant' && (
                   <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center shrink-0 border border-gray-700">
-                    <ArleneIcon size={16} className="text-gold-500" />
+                    <AiRianeIcon size={16} className="text-gold-500" />
                   </div>
                 )}
                 <div className={`p-3 rounded-2xl max-w-[80%] text-sm leading-relaxed ${
@@ -161,7 +175,7 @@ export const AIChat: React.FC = () => {
             {isTyping && (
               <div className="flex gap-3">
                  <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center shrink-0">
-                    <ArleneIcon size={16} className="text-gold-500" />
+                    <AiRianeIcon size={16} className="text-gold-500" />
                   </div>
                   <div className="bg-gray-900 border border-gray-800 p-3 rounded-2xl rounded-bl-none flex gap-1 items-center">
                     <span className="w-2 h-2 bg-gray-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}/>

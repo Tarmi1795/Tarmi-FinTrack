@@ -70,7 +70,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <div className="min-h-screen text-gray-100 flex flex-col md:flex-row bg-transparent">
       {/* Mobile Header - Compact for smaller screens */}
-      <header className="md:hidden fixed top-0 left-0 right-0 glass-panel z-30 px-4 h-14 flex items-center justify-between border-b border-gray-800 shadow-sm">
+      <header 
+        className="md:hidden fixed top-0 left-0 right-0 glass-panel z-30 px-4 flex items-center justify-between border-b border-gray-800 shadow-sm"
+        style={{
+          paddingTop: 'env(safe-area-inset-top)',
+          height: 'calc(3.5rem + env(safe-area-inset-top))'
+        }}
+      >
          <div className="flex items-center gap-3">
              <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-gray-400 hover:text-white rounded-lg active:scale-90 transition-transform">
                  <Menu size={20} />
@@ -98,7 +104,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         flex flex-col w-64 glass-panel border-r border-gray-800 fixed h-full z-50 top-0 left-0 shadow-2xl bg-gray-950/95 backdrop-blur-xl transition-transform duration-300 ease-in-out
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
-        <div className="p-6 relative overflow-hidden group flex justify-between items-start">
+        <div className="p-6 sidebar-safe-top relative overflow-hidden group flex justify-between items-start">
           <div className="relative z-10 transition-transform duration-300 group-hover:scale-105">
             <Logo className="w-10 h-10" />
             <div className="mt-4 flex gap-2 text-[10px] text-gold-500/80 font-mono pl-1 uppercase tracking-wider">
@@ -138,7 +144,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-gray-800 space-y-2">
+        <div className="p-4 sidebar-safe-bottom border-t border-gray-800 space-y-2">
           <button
             onClick={() => setIsAddModalOpen(true)}
             className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-blue-600 hover:from-blue-500 hover:to-primary text-white py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-blue-900/30 btn-float border border-white/10 active:scale-95 transform"
@@ -158,12 +164,15 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       </aside>
 
       {/* Main Content - Improved spacing for mobile safe areas */}
-      <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-[1600px] mx-auto w-full pt-20 md:pt-8 pb-24 md:pb-8 animate-fade-in min-h-[100vh]">
+      <main className="flex-1 md:ml-64 p-4 md:p-8 max-w-[1600px] mx-auto w-full pt-20 md:pt-8 pb-24 md:pb-8 mobile-safe-main animate-fade-in min-h-[100vh]">
         {children}
       </main>
 
       {/* Mobile Floating Action Button */}
-      <div className="md:hidden fixed bottom-6 left-0 right-0 flex justify-center z-30 pointer-events-none">
+      <div 
+        className="md:hidden fixed left-0 right-0 flex justify-center z-30 pointer-events-none"
+        style={{ bottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+      >
         <button
           onClick={() => setIsAddModalOpen(true)}
           className="w-16 h-16 bg-gradient-to-tr from-gold-500 to-amber-300 text-black rounded-full flex items-center justify-center shadow-2xl shadow-gold-500/40 hover:scale-110 active:scale-90 transition-transform border-4 border-[#121212] pointer-events-auto"

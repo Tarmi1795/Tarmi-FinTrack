@@ -196,6 +196,35 @@
         transform: translateY(0) scale(0.98);
       }
 
+      /* Safe Area Utilities for iPhone 16 Pro Max and modern devices */
+      .safe-top-padding {
+        padding-top: env(safe-area-inset-top);
+      }
+      .safe-bottom-padding {
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+      .sidebar-safe-top {
+        padding-top: calc(1.5rem + env(safe-area-inset-top));
+      }
+      .sidebar-safe-bottom {
+        padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+      }
+      
+      @media (max-width: 767px) {
+        .mobile-safe-main {
+          padding-top: calc(4.5rem + env(safe-area-inset-top)) !important;
+          padding-bottom: calc(7rem + env(safe-area-inset-bottom)) !important;
+          padding-left: calc(1rem + env(safe-area-inset-left)) !important;
+          padding-right: calc(1rem + env(safe-area-inset-right)) !important;
+        }
+        .chat-safe-layout {
+          bottom: calc(1rem + env(safe-area-inset-bottom)) !important;
+          right: calc(1rem + env(safe-area-inset-right)) !important;
+          left: calc(1rem + env(safe-area-inset-left)) !important;
+          width: calc(100vw - 2rem - env(safe-area-inset-left) - env(safe-area-inset-right)) !important;
+        }
+      }
+
       @media print {
         body * { visibility: hidden; }
         /* Include both invoice-area (modals) and soa-print-area (reports) */
