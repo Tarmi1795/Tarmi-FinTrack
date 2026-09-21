@@ -200,3 +200,57 @@ export interface CashCount {
   notes?: string;
   created_at?: string;
 }
+
+// --- TRADING PORTFOLIO MODULE (mirrors Supabase tables directly) ---
+
+export interface TradingAccount {
+  id: string;
+  user_id?: string;
+  name: string;
+  broker?: string;
+  currency: string;
+  notes?: string;
+  is_active: boolean;
+  sort_order?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface TradingCashflow {
+  id: string;
+  user_id?: string;
+  account_id: string;
+  flow_type: 'deposit' | 'withdrawal';
+  amount: number; // In the trading account's currency
+  fx_rate?: number; // Rate to base currency used when posting to the ledger
+  flow_date: string; // YYYY-MM-DD
+  gl_transaction_id?: string; // Linked journal entry in fintrack_transactions
+  bank_account_id?: string; // GL account id of the source/target bank
+  note?: string;
+  created_at?: string;
+}
+
+export interface TradingSnapshot {
+  id: string;
+  user_id?: string;
+  account_id: string;
+  balance: number; // In the trading account's currency
+  snap_date: string; // YYYY-MM-DD
+  fx_rate?: number;
+  note?: string;
+  created_at?: string;
+}
+
+export interface TradingFxRate {
+  id: string;
+  user_id?: string;
+  currency: string;
+  rate_to_base: number; // 1 unit of currency = rate_to_base units of base currency
+  updated_at?: string;
+}
+
+export interface TradingSettings {
+  user_id: string;
+  linked_gl_account_id?: string; // The "Trading Account" Account.id in the Chart of Accounts
+  updated_at?: string;
+}

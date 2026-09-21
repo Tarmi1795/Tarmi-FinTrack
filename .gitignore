@@ -28,6 +28,9 @@ dist-ssr
 .env.local
 .env.*.local
 
+# Database backups (contain user data)
+db_backups/
+
 # AI Agent / IDE Metadata
 .adal/
 .agents/
@@ -58,6 +61,7 @@ dist-ssr
 .trae/
 .vibe/
 .windsurf/
+.zcode/
 .zencoder/
 skills/
 skills-lock.json

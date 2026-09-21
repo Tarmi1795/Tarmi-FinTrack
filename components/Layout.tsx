@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Plus, PieChart, Settings as SettingsIcon, ArrowRightLeft, Monitor, BookOpen, LogOut, Target, Lock, Calculator, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Plus, PieChart, Settings as SettingsIcon, ArrowRightLeft, Monitor, BookOpen, LogOut, Target, Lock, Calculator, CandlestickChart, Menu, X } from 'lucide-react';
 import { Modal } from './ui/Modal';
 import { TransactionForm } from './TransactionForm';
 import { Logo } from './ui/Logo';
@@ -64,6 +64,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     { icon: BookOpen, label: 'Journal', to: '/journal' },
     { icon: PieChart, label: 'Reports', to: '/reports' },
     { icon: Calculator, label: 'Money Counter', to: '/money-counter' },
+    { icon: CandlestickChart, label: 'Trading', to: '/trading' },
     { icon: SettingsIcon, label: 'Settings', to: '/settings' },
   ];
 
