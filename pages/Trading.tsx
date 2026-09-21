@@ -77,6 +77,14 @@ export const Trading: React.FC = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
+  const handleError = (e: any, fallback: string) => {
+    if (tradingService.isMissingTableError(e)) {
+      setNeedsMigration(true); // Show the "run the migration" banner instead of a raw error
+    } else {
+      setLoadError(e?.message || fallback);
+    }
+  };
+
   const loadAll = useCallback(async () => {
     if (!user) return;
     setIsLoading(true);
@@ -197,7 +205,7 @@ export const Trading: React.FC = () => {
       showToast(editAccount ? 'Account updated.' : 'Trading account added.');
       await loadAll();
     } catch (e: any) {
-      setLoadError(e?.message || 'Failed to save account.');
+      handleError(e, 'Failed to save account.');
     } finally {
       setIsSaving(false);
     }
@@ -212,7 +220,7 @@ export const Trading: React.FC = () => {
       showToast('Trading account deleted.');
       await loadAll();
     } catch (e: any) {
-      setLoadError(e?.message || 'Failed to delete account.');
+      handleError(e, 'Failed to delete account.');
     } finally {
       setIsSaving(false);
     }
@@ -233,7 +241,7 @@ export const Trading: React.FC = () => {
       showToast('Balance updated.');
       await loadAll();
     } catch (e: any) {
-      setLoadError(e?.message || 'Failed to save balance.');
+      handleError(e, 'Failed to save balance.');
     } finally {
       setIsSaving(false);
     }
@@ -259,7 +267,7 @@ export const Trading: React.FC = () => {
       showToast(cashflowMode === 'deposit' ? 'Deposit recorded.' : 'Withdrawal recorded.');
       await loadAll();
     } catch (e: any) {
-      setLoadError(e?.message || 'Failed to record cash flow.');
+      handleError(e, 'Failed to record cash flow.');
     } finally {
       setIsSaving(false);
     }
@@ -274,7 +282,7 @@ export const Trading: React.FC = () => {
       showToast('Entry deleted.');
       await loadAll();
     } catch (e: any) {
-      setLoadError(e?.message || 'Failed to delete entry.');
+      handleError(e, 'Failed to delete entry.');
     } finally {
       setIsSaving(false);
     }
@@ -287,7 +295,7 @@ export const Trading: React.FC = () => {
       await tradingService.deleteSnapshot(user.id, snap.id);
       await loadAll();
     } catch (e: any) {
-      setLoadError(e?.message || 'Failed to delete snapshot.');
+      handleError(e, 'Failed to delete snapshot.');
     } finally {
       setIsSaving(false);
     }
@@ -305,7 +313,7 @@ export const Trading: React.FC = () => {
       showToast('FX rates saved.');
       await loadAll();
     } catch (e: any) {
-      setLoadError(e?.message || 'Failed to save FX rates.');
+      handleError(e, 'Failed to save FX rates.');
     } finally {
       setIsSaving(false);
     }
@@ -350,7 +358,7 @@ export const Trading: React.FC = () => {
       setShowLinkCard(false);
       showToast('Trading module linked to the Chart of Accounts.');
     } catch (e: any) {
-      setLoadError(e?.message || 'Failed to save the link.');
+      handleError(e, 'Failed to save the link.');
     }
   };
 

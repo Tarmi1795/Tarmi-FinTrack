@@ -18,7 +18,9 @@ const DEFAULT_FX_RATES: Partial<Record<CurrencyCode, number>> = {
 export const tradingService = {
   isMissingTableError(error: { code?: string; message?: string } | null): boolean {
     if (!error) return false;
-    return error.code === '42P01' || (error.message?.includes('does not exist') ?? false);
+    return error.code === '42P01'
+      || (error.message?.includes('does not exist') ?? false)
+      || (error.message?.includes('Could not find the table') ?? false); // PostgREST schema-cache miss (HTTP 404)
   },
 
   // --- Trading accounts ---
