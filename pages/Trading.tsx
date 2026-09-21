@@ -170,11 +170,11 @@ export const Trading: React.FC = () => {
     [state.accounts, linkedGlAccountId]
   );
 
-  // Net invested capital in base currency, valued at each flow's stored FX rate
+  // Net invested capital in base currency at current rates (stored fx_rate is informational only)
   const netInvestedBase = useMemo(() => (
     cashflows.reduce((sum, f) => {
       const acc = accounts.find((a) => a.id === f.account_id);
-      const rate = f.fx_rate ?? (acc ? rateFor(acc.currency) : 1);
+      const rate = acc ? rateFor(acc.currency) : 1;
       return sum + (f.flow_type === 'deposit' ? f.amount : -f.amount) * rate;
     }, 0)
   ), [cashflows, accounts, rateFor]);
