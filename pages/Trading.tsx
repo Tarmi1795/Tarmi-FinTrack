@@ -265,8 +265,25 @@ export const Trading: React.FC = () => {
         flow_date: fDate,
         note: fNote.trim() || undefined,
       });
+
+      // Auto-adjust Balance Today: deposit raises it, withdrawal lowers it
+      const accSnaps = snapshots
+        .filter((s) => s.account_id === cashflowAccount.id)
+        .sort((a, b) => a.snap_date.localeCompare(b.snap_date));
+      const latest = accSnaps.length ? accSnaps[accSnaps.length - 1] : null;
+      const currentBalance = latest ? Number(latest.balance) : 0;
+      const newBalance = Math.round((currentBalance + (cashflowMode === 'deposit' ? value : -value)) * 100) / 100;
+      const snapDate = latest && latest.snap_date > fDate ? latest.snap_date : fDate;
+      await tradingService.upsertSnapshot(user.id, {
+        account_id: cashflowAccount.id,
+        balance: newBalance,
+        snap_date: snapDate,
+        fx_rate: rate,
+        note: `Auto-adjusted after ${cashflowMode}`,
+      });
+
       setShowCashflowForm(false);
-      showToast(cashflowMode === 'deposit' ? 'Deposit recorded.' : 'Withdrawal recorded.');
+      showToast(cashflowMode === 'deposit' ? 'Deposit recorded — balance updated.' : 'Withdrawal recorded — balance updated.');
       await loadAll();
     } catch (e: any) {
       handleError(e, 'Failed to record cash flow.');
@@ -277,11 +294,30 @@ export const Trading: React.FC = () => {
 
   const handleDeleteCashflow = async (flow: TradingCashflow) => {
     if (!user) return;
-    if (!window.confirm('Delete this entry?')) return;
+    if (!window.confirm('Delete this entry? Its balance adjustment will also be reversed.')) return;
     setIsSaving(true);
     try {
+      // Reverse the auto balance adjustment (deposit lowered, withdrawal raised)
+      const acc = accounts.find((a) => a.id === flow.account_id);
+      if (acc) {
+        const accSnaps = snapshots
+          .filter((s) => s.account_id === acc.id)
+          .sort((a, b) => a.snap_date.localeCompare(b.snap_date));
+        const latest = accSnaps.length ? accSnaps[accSnaps.length - 1] : null;
+        if (latest) {
+          const amount = Number(flow.amount);
+          const reverted = Math.round((Number(latest.balance) + (flow.flow_type === 'deposit' ? -amount : amount)) * 100) / 100;
+          await tradingService.upsertSnapshot(user.id, {
+            account_id: acc.id,
+            balance: reverted,
+            snap_date: latest.snap_date,
+            fx_rate: rateFor(acc.currency),
+            note: 'Auto-adjusted after entry deletion',
+          });
+        }
+      }
       await tradingService.deleteCashflow(user.id, flow.id);
-      showToast('Entry deleted.');
+      showToast('Entry deleted — balance reverted.');
       await loadAll();
     } catch (e: any) {
       handleError(e, 'Failed to delete entry.');
@@ -843,7 +879,7 @@ export const Trading: React.FC = () => {
       >
         <div className="space-y-4">
           <p className="text-xs text-gray-500 bg-gray-900/60 border border-gray-800 rounded-lg p-3">
-            Standalone entry — tracked in this module only. It never posts journal entries or changes balances in the main app.
+            {cashflowMode === 'deposit' ? 'Adds funds and automatically raises this account' : 'Removes funds and automatically lowers this account'}'s <span className="text-gold-400 font-bold">Balance Today</span>. Standalone to this module — nothing in the main app is affected.
           </p>
           <div className="grid grid-cols-2 gap-3">
             <div>
