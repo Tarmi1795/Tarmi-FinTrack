@@ -238,10 +238,10 @@ export const Dashboard: React.FC = () => {
     .slice(0, 5);
 
   return (
-    <div className="space-y-6 pb-24 md:pb-0 animate-slide-up">
+    <div className="space-y-4 md:space-y-6 animate-slide-up">
       <div className="flex justify-between items-end">
           <div>
-            <h1 className="text-3xl font-bold text-white tracking-tight">Dashboard</h1>
+            <h1 className="text-xl md:text-3xl font-bold text-white tracking-tight">Dashboard</h1>
             <p className="text-gray-400 text-sm">{format(new Date(), 'MMMM yyyy')}</p>
           </div>
           {/* SMALL INSTALL BUTTON IN HEADER */}
@@ -260,14 +260,14 @@ export const Dashboard: React.FC = () => {
       {/* --- ROW 1: CASH & PROFIT --- */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* CASH BREAKDOWN */}
-          <div className="glass-card p-5 rounded-2xl relative overflow-hidden bg-gray-900 border border-gold-500/10 hover:border-gold-500/30 hover:-translate-y-1 hover:shadow-2xl transition-all duration-300 group">
-              <div className="flex justify-between items-start mb-4">
-                  <h3 className="text-gray-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2"><Wallet size={14} className="text-gold-500 group-hover:scale-110 transition-transform"/> Cash and Cash Equivalent </h3>
-                  <span className="text-2xl font-bold text-white group-hover:text-gold-400 transition-colors">{currency} {totalSelectedCash.toLocaleString()}</span>
+          <div className="glass-card p-4 md:p-5 rounded-2xl relative overflow-hidden bg-gray-900 border border-gold-500/10 hover:border-gold-500/30 hover:-translate-y-1 hover:shadow-2xl transition-all duration-300 group">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 sm:gap-2 mb-3 md:mb-4">
+                  <h3 className="text-gray-400 text-[11px] md:text-xs font-bold uppercase tracking-widest flex items-center gap-2"><Wallet size={14} className="text-gold-500 group-hover:scale-110 transition-transform"/> Cash and Cash Equivalent </h3>
+                  <span className="text-xl md:text-2xl font-bold text-white group-hover:text-gold-400 transition-colors font-mono">{currency} {totalSelectedCash.toLocaleString()}</span>
               </div>
-              <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+              <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
                   {assetBalances.map(acc => (
-                      <div key={acc.id} className="flex items-center justify-between p-2 rounded-lg bg-gray-950/50 border border-white/5 cursor-pointer hover:bg-gray-800/80 transition-colors" onClick={() => setCheckedAssets(prev => ({...prev, [acc.id]: !prev[acc.id]}))}>
+                      <div key={acc.id} className="flex items-center justify-between py-2 px-2.5 min-h-[44px] rounded-lg bg-gray-950/50 border border-white/5 cursor-pointer hover:bg-gray-800/80 active:bg-gray-800 transition-colors" onClick={() => setCheckedAssets(prev => ({...prev, [acc.id]: !prev[acc.id]}))}>
                           <div className="flex items-center gap-2">
                               {checkedAssets[acc.id] ? <CheckSquare size={16} className="text-gold-500"/> : <Square size={16} className="text-gray-600"/>}
                               <span className="text-sm text-gray-300">
@@ -281,11 +281,11 @@ export const Dashboard: React.FC = () => {
           </div>
 
           {/* BUSINESS PROFIT CARD (GROSS ONLY) */}
-          <div className="glass-card p-5 rounded-2xl bg-gray-900 border border-blue-500/10 cursor-pointer transition-all duration-300 hover:border-blue-500/40 hover:-translate-y-1 hover:shadow-2xl group" onClick={() => setShowProfitDetails(!showProfitDetails)}>
+          <div className="glass-card p-4 md:p-5 rounded-2xl bg-gray-900 border border-blue-500/10 cursor-pointer transition-all duration-300 hover:border-blue-500/40 hover:-translate-y-1 hover:shadow-2xl group" onClick={() => setShowProfitDetails(!showProfitDetails)}>
               <div className="flex justify-between items-start">
                   <div>
-                      <p className="text-gray-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2"><Briefcase size={14} className="text-blue-500 group-hover:scale-110 transition-transform"/> Business Performance</p>
-                      <h3 className={`text-3xl font-bold mt-2 ${bizStats.gross >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
+                      <p className="text-gray-400 text-[11px] md:text-xs font-bold uppercase tracking-widest flex items-center gap-2"><Briefcase size={14} className="text-blue-500 group-hover:scale-110 transition-transform"/> Business Performance</p>
+                      <h3 className={`text-2xl md:text-3xl font-bold mt-2 font-mono ${bizStats.gross >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
                           {currency} {bizStats.gross.toLocaleString()}
                       </h3>
                       <div className="flex items-center gap-2 mt-2">
@@ -308,8 +308,8 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* --- ROW 2: SMALLER CARDS + BUDGET --- */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="glass-card p-4 rounded-xl border-l-4 border-l-emerald-500 flex flex-col justify-between hover:bg-gray-800/50 hover:shadow-lg transition-all duration-200 cursor-pointer active:scale-95" onClick={() => navigate('/apar')}>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+          <div className="glass-card p-3.5 rounded-xl border-l-4 border-l-emerald-500 flex flex-col justify-between hover:bg-gray-800/50 hover:shadow-lg transition-all duration-200 cursor-pointer active:scale-95" onClick={() => navigate('/apar')}>
               <div className="flex justify-between items-start">
                   <div>
                     <p className="text-[10px] font-bold text-emerald-500 uppercase">Receivables</p>
@@ -320,7 +320,7 @@ export const Dashboard: React.FC = () => {
               <div className="mt-2 text-[10px] text-gray-500">{pendingReceivables.length} Active</div>
           </div>
 
-          <div className="glass-card p-4 rounded-xl border-l-4 border-l-orange-500 flex flex-col justify-between hover:bg-gray-800/50 hover:shadow-lg transition-all duration-200 cursor-pointer active:scale-95" onClick={() => navigate('/apar')}>
+          <div className="glass-card p-3.5 rounded-xl border-l-4 border-l-orange-500 flex flex-col justify-between hover:bg-gray-800/50 hover:shadow-lg transition-all duration-200 cursor-pointer active:scale-95" onClick={() => navigate('/apar')}>
              <div className="flex justify-between items-start">
                   <div>
                       <p className="text-[10px] font-bold text-orange-500 uppercase">Payables</p>
@@ -331,7 +331,7 @@ export const Dashboard: React.FC = () => {
               <div className="mt-2 text-[10px] text-gray-500">{pendingPayables.length} Active</div>
           </div>
 
-          <div className="md:col-span-2 glass-card p-4 rounded-xl flex flex-col justify-center gap-3 hover:border-gray-600 transition-colors">
+          <div className="col-span-2 md:col-span-2 glass-card p-3.5 md:p-4 rounded-xl flex flex-col justify-center gap-3 hover:border-gray-600 transition-colors">
              <div>
                 <div className="flex justify-between text-[10px] uppercase font-bold text-gray-500 mb-1">
                     <span>Monthly Budget</span>
@@ -354,8 +354,8 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* --- ROW 3: CHARTS & HISTORY --- */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="glass-card rounded-2xl p-5 border border-white/5 hover:border-white/10 transition-colors">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+          <div className="glass-card rounded-2xl p-4 md:p-5 border border-white/5 hover:border-white/10 transition-colors">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-gray-400 text-xs font-bold uppercase">Top 5 Expenses</h3>
                 <button 
@@ -387,7 +387,7 @@ export const Dashboard: React.FC = () => {
               </div>
           </div>
 
-          <div className="lg:col-span-2 glass-card rounded-2xl p-5 border border-white/5 hover:border-white/10 transition-colors">
+          <div className="lg:col-span-2 glass-card rounded-2xl p-4 md:p-5 border border-white/5 hover:border-white/10 transition-colors">
               <h3 className="text-gray-400 text-xs font-bold uppercase mb-4 flex items-center gap-2"><Clock size={14}/> Recent Activity</h3>
               <div className="space-y-3">
                   {recentTxs.map(t => {
@@ -430,7 +430,7 @@ export const Dashboard: React.FC = () => {
 
       {/* iOS Instructions Modal */}
       <Modal isOpen={showIOSInstruction} onClose={() => setShowIOSInstruction(false)} title="Install on iPhone/iPad">
-         <div className="p-4 space-y-4 text-gray-300">
+         <div className="space-y-4 text-gray-300">
              <p className="text-sm">This app can be installed on your home screen for a full-screen experience and offline access.</p>
              <div className="space-y-3">
                  <div className="flex items-center gap-3">
@@ -448,7 +448,7 @@ export const Dashboard: React.FC = () => {
 
       {/* Generic Instructions Modal (Chrome/Android Fallback) */}
       <Modal isOpen={showGenericInstruction} onClose={() => setShowGenericInstruction(false)} title="Install App">
-            <div className="p-4 space-y-4 text-gray-300">
+            <div className="space-y-4 text-gray-300">
             <p className="text-sm">To install the app, use your browser's menu.</p>
             
             <div className="space-y-3">

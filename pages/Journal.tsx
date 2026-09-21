@@ -41,22 +41,23 @@ export const Journal: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-20 md:pb-0 animate-fade-in">
+    <div className="space-y-4 md:space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Journal</h1>
+          <h1 className="text-xl md:text-3xl font-bold text-white tracking-tight">Journal</h1>
           <p className="text-gray-400 text-sm mt-1">Audit Log & History</p>
         </div>
+        <span className="text-xs text-gray-500 font-mono">{filteredTransactions.length} entries</span>
       </div>
 
-      <div className="glass-panel p-2 rounded-xl flex gap-4 border border-white/10 sticky top-16 md:relative md:top-0 z-20">
-        <div className="flex-1 flex items-center gap-2 bg-gray-900/50 px-3 py-2.5 rounded-lg border border-gray-700/50 focus-within:border-gold-500/50 transition-colors">
-           <Search size={18} className="text-gray-500" />
-           <input 
+      <div className="glass-panel p-2 rounded-xl flex gap-4 border border-white/10 sticky top-[calc(3.5rem+env(safe-area-inset-top))] md:relative md:top-0 z-20">
+        <div className="flex-1 flex items-center gap-2 bg-gray-900/50 px-3 py-3 rounded-lg border border-gray-700/50 focus-within:border-gold-500/50 transition-colors">
+           <Search size={18} className="text-gray-500 shrink-0" />
+           <input
              ref={searchInputRef}
-             type="text" 
-             placeholder="Search transactions..." 
-             className="bg-transparent text-white outline-none w-full text-sm placeholder-gray-600"
+             type="text"
+             placeholder="Search transactions..."
+             className="bg-transparent text-white outline-none w-full placeholder-gray-600"
              value={searchTerm}
              onChange={e => setSearchTerm(e.target.value)}
            />
@@ -123,35 +124,35 @@ export const Journal: React.FC = () => {
         {filteredTransactions.map(t => {
           const acc = state.accounts.find(c => c.id === t.accountId);
           return (
-            <div key={t.id} className="glass-card p-4 rounded-xl border border-white/5 flex flex-col gap-3">
-              <div className="flex justify-between items-start">
-                <div className="flex flex-col">
-                  <span className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1 flex items-center gap-1.5">
+            <div key={t.id} className="glass-card p-3.5 rounded-xl border border-white/5 flex flex-col gap-2.5">
+              <div className="flex justify-between items-start gap-3">
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1 flex items-center gap-1.5">
                     <Calendar size={12} /> {format(parseISO(t.date), 'MMM d, yyyy')}
                   </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-200 font-semibold">{acc?.name}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-gray-200 font-semibold truncate">{acc?.name}</span>
                   </div>
                 </div>
-                <div className={`text-right font-bold text-lg ${t.type === 'income' ? 'text-emerald-400' : 'text-gray-200'}`}>
+                <div className={`text-right font-bold font-mono text-base shrink-0 ${t.type === 'income' ? 'text-emerald-400' : 'text-gray-200'}`}>
                   {t.type === 'income' ? '+' : '-'} {t.amount.toLocaleString()}
                 </div>
               </div>
-              
+
               {t.note && (
-                <p className="text-sm text-gray-400 italic">"{t.note}"</p>
+                <p className="text-sm text-gray-400 italic truncate">"{t.note}"</p>
               )}
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/5">
-                <button 
+              <div className="flex items-center justify-end gap-2 pt-2.5 border-t border-white/5">
+                <button
                   onClick={() => setEditingTx(t)}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 text-blue-400 rounded-lg text-xs font-bold"
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 text-blue-400 rounded-lg text-xs font-bold active:bg-blue-500/20 transition-colors"
                 >
                   <Pencil size={14} /> Edit
                 </button>
-                <button 
+                <button
                   onClick={() => handleDelete(t.id)}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg text-xs font-bold"
+                  className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-400 rounded-lg text-xs font-bold active:bg-red-500/20 transition-colors"
                 >
                   <Trash2 size={14} /> Delete
                 </button>

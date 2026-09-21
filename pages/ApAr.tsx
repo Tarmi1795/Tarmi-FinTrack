@@ -513,43 +513,43 @@ export const ApAr: React.FC = () => {
   ).reduce((s, r) => s + (r.amount - (r.paidAmount || 0)), 0);
 
   return (
-    <div className="space-y-6 pb-20 md:pb-0 animate-fade-in">
-        {/* Header & Tabs - Unchanged */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div><h1 className="text-3xl font-bold text-gray-100 tracking-tight">AP / AR</h1><p className="text-gray-400 text-sm">Manage invoices, bills, and loans</p></div>
-            <div className="flex gap-2 flex-wrap">
-                <button onClick={() => navigate('/settings', { state: { tab: 'parties' } })} className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-400 px-3 py-2 rounded-xl text-xs font-bold uppercase transition-all hover:scale-105"><Users size={16} /> Parties</button>
-                <button onClick={handleSync} className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-400 px-3 py-2 rounded-xl text-xs font-bold uppercase transition-all hover:scale-105"><RefreshCw size={16} /> Sync</button>
-                <button onClick={() => handleOpenAdd('receivable', 'invoice')} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-xs font-bold uppercase transition-all hover:scale-105 active:scale-95"><Plus size={16} /> New Invoice</button>
-                <button onClick={() => handleOpenAdd('payable', 'bill')} className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-xl text-xs font-bold uppercase transition-all hover:scale-105 active:scale-95"><Plus size={16} /> New Bill</button>
-                <button onClick={() => handleOpenAdd('receivable', 'loan')} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl text-xs font-bold uppercase transition-all hover:scale-105 active:scale-95"><HandCoins size={16} /> Loan</button>
+    <div className="space-y-4 md:space-y-6 animate-fade-in">
+        {/* Header & Tabs */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 md:gap-4">
+            <div><h1 className="text-xl md:text-3xl font-bold text-gray-100 tracking-tight">AP / AR</h1><p className="text-gray-400 text-sm">Manage invoices, bills, and loans</p></div>
+            <div className="tab-scroll md:flex-wrap md:overflow-visible w-full md:w-auto">
+                <button onClick={() => navigate('/settings', { state: { tab: 'parties' } })} className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-400 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase transition-all active:scale-95"><Users size={16} /> Parties</button>
+                <button onClick={handleSync} className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-400 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase transition-all active:scale-95"><RefreshCw size={16} /> Sync</button>
+                <button onClick={() => handleOpenAdd('receivable', 'invoice')} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase transition-all active:scale-95"><Plus size={16} /> New Invoice</button>
+                <button onClick={() => handleOpenAdd('payable', 'bill')} className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase transition-all active:scale-95"><Plus size={16} /> New Bill</button>
+                <button onClick={() => handleOpenAdd('receivable', 'loan')} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase transition-all active:scale-95"><HandCoins size={16} /> Loan</button>
             </div>
         </div>
 
-        {/* Summary Cards - Updated Calculation */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div className="bg-emerald-900/20 border border-emerald-500/30 p-4 rounded-2xl hover:-translate-y-1 hover:shadow-lg transition-all duration-300">
-                <p className="text-xs font-bold text-emerald-400 uppercase mb-1">Total Receivables</p>
-                <p className="text-2xl font-bold text-white">{baseCurrency} {totalAr.toLocaleString()}</p>
+        {/* Summary Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+            <div className="bg-emerald-900/20 border border-emerald-500/30 p-3.5 md:p-4 rounded-2xl hover:-translate-y-1 hover:shadow-lg transition-all duration-300">
+                <p className="text-[11px] md:text-xs font-bold text-emerald-400 uppercase mb-1">Total Receivables</p>
+                <p className="text-lg md:text-2xl font-bold text-white font-mono truncate">{baseCurrency} {totalAr.toLocaleString()}</p>
                 <div className="mt-2 text-[10px] text-gray-400">Current Outstanding</div>
             </div>
-            <div className="bg-orange-900/20 border border-orange-500/30 p-4 rounded-2xl hover:-translate-y-1 hover:shadow-lg transition-all duration-300">
-                <p className="text-xs font-bold text-orange-400 uppercase mb-1">Total Payables</p>
-                <p className="text-2xl font-bold text-white">{baseCurrency} {totalAp.toLocaleString()}</p>
+            <div className="bg-orange-900/20 border border-orange-500/30 p-3.5 md:p-4 rounded-2xl hover:-translate-y-1 hover:shadow-lg transition-all duration-300">
+                <p className="text-[11px] md:text-xs font-bold text-orange-400 uppercase mb-1">Total Payables</p>
+                <p className="text-lg md:text-2xl font-bold text-white font-mono truncate">{baseCurrency} {totalAp.toLocaleString()}</p>
                 <div className="mt-2 text-[10px] text-gray-400">Current Outstanding</div>
             </div>
-             <div className="bg-gray-900/40 border border-gray-800 p-4 rounded-2xl hidden md:block hover:bg-gray-800 transition-colors">
-                <p className="text-xs font-bold text-gray-400 uppercase mb-1">Net Position</p>
-                <p className={`text-2xl font-bold ${(totalAr - totalAp) >= 0 ? 'text-blue-400' : 'text-red-400'}`}>{baseCurrency} {(totalAr - totalAp).toLocaleString()}</p>
+             <div className="col-span-2 md:col-span-1 bg-gray-900/40 border border-gray-800 p-3.5 md:p-4 rounded-2xl hover:bg-gray-800 transition-colors">
+                <p className="text-[11px] md:text-xs font-bold text-gray-400 uppercase mb-1">Net Position</p>
+                <p className={`text-lg md:text-2xl font-bold font-mono ${(totalAr - totalAp) >= 0 ? 'text-blue-400' : 'text-red-400'}`}>{baseCurrency} {(totalAr - totalAp).toLocaleString()}</p>
                 <div className="mt-2 text-[10px] text-gray-500">Current Impact</div>
             </div>
         </div>
 
-        {/* Tabs & List - Unchanged */}
-        <div className="flex border-b border-gray-800">
-             <button onClick={() => setActiveTab('all')} className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'all' ? 'border-primary text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>All Pending</button>
-             <button onClick={() => setActiveTab('receivable')} className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'receivable' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>Receivables</button>
-             <button onClick={() => setActiveTab('payable')} className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'payable' ? 'border-orange-500 text-orange-400' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>Payables</button>
+        {/* Tabs & List */}
+        <div className="tab-scroll md:overflow-visible border-b border-gray-800">
+             <button onClick={() => setActiveTab('all')} className={`flex-1 min-w-[96px] px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'all' ? 'border-primary text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>All Pending</button>
+             <button onClick={() => setActiveTab('receivable')} className={`flex-1 min-w-[96px] px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'receivable' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>Receivables</button>
+             <button onClick={() => setActiveTab('payable')} className={`flex-1 min-w-[96px] px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'payable' ? 'border-orange-500 text-orange-400' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>Payables</button>
         </div>
 
         <div className="grid gap-4">
@@ -563,36 +563,36 @@ export const ApAr: React.FC = () => {
                 const remaining = item.amount - (item.paidAmount || 0);
 
                 return (
-                    <div key={item.id} className={`glass-panel p-5 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 group hover:bg-gray-800/60 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 ${isFutureItem ? 'opacity-60 grayscale-[0.5]' : ''}`}>
-                        <div className="flex items-start gap-4">
-                             <div className={`p-3 rounded-xl shrink-0 ${bgClass} ${colorClass}`}>{icon}</div>
-                             <div>
-                                 <div className="flex items-center gap-2">
+                    <div key={item.id} className={`glass-panel p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 group hover:bg-gray-800/60 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 ${isFutureItem ? 'opacity-60 grayscale-[0.5]' : ''}`}>
+                        <div className="flex items-start gap-3 min-w-0">
+                             <div className={`p-2.5 rounded-xl shrink-0 ${bgClass} ${colorClass}`}>{icon}</div>
+                             <div className="min-w-0">
+                                 <div className="flex items-center gap-2 flex-wrap">
                                      <h3 className="font-bold text-gray-200">{item.partyName}</h3>
-                                     {item.partyId && <button onClick={() => goToPartySOA(item.partyId!)} className="p-1 hover:bg-gray-700 rounded text-gray-500 hover:text-blue-400 transition-colors"><FileText size={14} /></button>}
+                                     {item.partyId && <button onClick={() => goToPartySOA(item.partyId!)} className="p-1.5 -m-1 hover:bg-gray-700 rounded text-gray-500 hover:text-blue-400 transition-colors"><FileText size={14} /></button>}
                                      {item.recurring?.active && <Repeat size={14} className="text-blue-400" />}
                                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${item.type === 'receivable' ? 'bg-emerald-900/30 text-emerald-400' : 'bg-orange-900/30 text-orange-400'}`}>{item.subType}</span>
                                      {isFutureItem && <span className="text-[10px] px-1.5 py-0.5 rounded font-bold uppercase bg-gray-700 text-gray-300">Future</span>}
                                  </div>
-                                 <p className="text-sm text-gray-400">{item.notes}</p>
-                                 <div className="flex items-center gap-3 mt-1.5"><span className={`text-xs ${isOverdue ? 'text-red-400 font-bold' : 'text-gray-500'}`}>Due {format(new Date(item.dueDate), 'MMM d')}</span><span className="text-xs text-gray-600">• {accName}</span></div>
+                                 <p className="text-sm text-gray-400 truncate">{item.notes}</p>
+                                 <div className="flex items-center gap-3 mt-1.5 flex-wrap"><span className={`text-xs ${isOverdue ? 'text-red-400 font-bold' : 'text-gray-500'}`}>Due {format(new Date(item.dueDate), 'MMM d')}</span><span className="text-xs text-gray-600 truncate">• {accName}</span></div>
                              </div>
                         </div>
-                        <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto border-t sm:border-t-0 border-gray-800 pt-3 sm:pt-0">
+                        <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto border-t sm:border-t-0 border-gray-800 pt-3 sm:pt-0">
                              <div className="text-right">
                                  {item.paidAmount && item.paidAmount > 0 ? (
                                      <span className="block text-[10px] text-gray-500 mb-0.5 font-mono">
                                          PAID: {item.paidAmount.toLocaleString()} / {item.amount.toLocaleString()}
                                      </span>
                                  ) : null}
-                                 <span className={`block text-xl font-bold ${colorClass}`}>{item.type === 'receivable' ? '+' : '-'} {remaining.toLocaleString()}</span>
+                                 <span className={`block text-lg font-bold font-mono ${colorClass}`}>{item.type === 'receivable' ? '+' : '-'} {remaining.toLocaleString()}</span>
                                  {item.currency === 'PHP' && <span className="text-xs text-gray-500">₱{item.originalAmount?.toLocaleString()}</span>}
                              </div>
-                             <div className="flex gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                                 <button onClick={() => handleOpenPayment(item)} className={`p-2 rounded-lg transition-all active:scale-90 ${item.type === 'receivable' ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/40' : 'bg-orange-600/20 text-orange-400 hover:bg-orange-600/40'}`} title="Settle"><CheckCircle size={18} /></button>
-                                 <button onClick={() => handleOpenEdit(item)} className="p-2 text-gray-500 hover:text-white hover:bg-gray-800 rounded-lg active:scale-90 transition-all"><Pencil size={18}/></button>
-                                 <button onClick={() => handleDelete(item.id)} className="p-2 text-gray-500 hover:text-red-400 hover:bg-gray-800 rounded-lg active:scale-90 transition-all"><Trash2 size={18}/></button>
-                                 {item.type === 'receivable' && item.subType !== 'loan' && <button onClick={() => setInvoiceData(item)} className="p-2 text-gray-500 hover:text-blue-400 hover:bg-gray-800 rounded-lg active:scale-90 transition-all"><FileText size={18}/></button>}
+                             <div className="flex gap-1 opacity-100 md:opacity-80 md:group-hover:opacity-100 transition-opacity">
+                                 <button onClick={() => handleOpenPayment(item)} className={`p-2.5 rounded-lg transition-all active:scale-90 ${item.type === 'receivable' ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/40' : 'bg-orange-600/20 text-orange-400 hover:bg-orange-600/40'}`} title="Settle"><CheckCircle size={18} /></button>
+                                 <button onClick={() => handleOpenEdit(item)} className="p-2.5 text-gray-500 hover:text-white hover:bg-gray-800 rounded-lg active:scale-90 transition-all"><Pencil size={18}/></button>
+                                 <button onClick={() => handleDelete(item.id)} className="p-2.5 text-gray-500 hover:text-red-400 hover:bg-gray-800 rounded-lg active:scale-90 transition-all"><Trash2 size={18}/></button>
+                                 {item.type === 'receivable' && item.subType !== 'loan' && <button onClick={() => setInvoiceData(item)} className="p-2.5 text-gray-500 hover:text-blue-400 hover:bg-gray-800 rounded-lg active:scale-90 transition-all"><FileText size={18}/></button>}
                              </div>
                         </div>
                     </div>
@@ -673,7 +673,7 @@ export const ApAr: React.FC = () => {
                     </div>
                     <div className="flex justify-between items-center">
                         <span className="text-gray-300 font-bold uppercase text-xs">Remaining Balance</span>
-                        <span className="text-2xl font-bold text-white">{baseCurrency} {(selectedItem ? (selectedItem.amount - (selectedItem.paidAmount || 0)) : 0).toLocaleString()}</span>
+                        <span className="text-lg md:text-2xl font-bold text-white font-mono">{baseCurrency} {(selectedItem ? (selectedItem.amount - (selectedItem.paidAmount || 0)) : 0).toLocaleString()}</span>
                     </div>
                 </div>
                 

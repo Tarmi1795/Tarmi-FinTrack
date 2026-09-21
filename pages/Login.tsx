@@ -169,7 +169,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#12100d] text-white flex flex-col md:flex-row overflow-hidden relative font-inter selection:bg-gold-500/30">
+    <div className="min-h-[100dvh] bg-[#12100d] text-white flex flex-col md:flex-row overflow-hidden relative font-inter selection:bg-gold-500/30">
         
         {/* --- LEFT SIDE: THE GOLDEN DOHA HERO --- */}
         <div className="hidden md:flex w-[60%] relative flex-col justify-end p-16 overflow-hidden bg-gray-900 shadow-[20px_0_50px_rgba(0,0,0,0.5)] z-10">
@@ -284,12 +284,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         </div>
 
         {/* --- RIGHT SIDE: AUTHENTICATION --- */}
-        <div className="w-full md:w-[40%] relative bg-[#12100d] flex items-center justify-center p-6 perspective-[1000px] overflow-hidden">
+        <div className="w-full md:w-[40%] relative bg-[#12100d] flex items-center justify-center p-4 sm:p-6 perspective-[1000px] overflow-hidden">
             {/* Dark/Gold Gradient Mesh Background */}
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-gold-900/20 via-[#12100d] to-[#12100d]"></div>
             
             {/* The Hanging Mechanism */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[300px] sm:w-[380px] h-[140px] flex justify-between px-8 z-20 pointer-events-none">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[280px] sm:w-[380px] h-[110px] sm:h-[140px] flex justify-between px-8 z-20 pointer-events-none">
                 {/* Left Chain */}
                 <motion.div variants={chainVariants} initial="initial" animate="animate" className="w-[2px] bg-gradient-to-b from-[#222] via-gold-600 to-gold-300 relative shadow-lg origin-top">
                     {/* Chain Links simulated by dashed border or small divs - kept simple for performance */}
@@ -306,7 +306,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 variants={hangingVariants}
                 initial="initial"
                 animate="animate"
-                className="origin-top relative z-10 w-full max-w-md pt-20" // pt-20 to account for chain length
+                className="origin-top relative z-10 w-full max-w-md pt-14 sm:pt-20" // pt to account for chain length
             >
                 <motion.div 
                     variants={cardEntrance}
@@ -329,13 +329,13 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                         <div className="w-[1px] h-12 bg-white/20"></div>
                     </div>
 
-                    <div className="p-8 sm:p-10 relative">
-                        
+                    <div className="p-5 sm:p-10 relative">
+
                         {/* Logo Area */}
-                        <div className="flex flex-col items-center mb-8">
-                            <div className="relative mb-6">
+                        <div className="flex flex-col items-center mb-5 sm:mb-8">
+                            <div className="relative mb-4 sm:mb-6">
                                 {/* Use New Logo Component */}
-                                <Logo className="w-28 h-28" showText={false} />
+                                <Logo className="w-20 h-20 sm:w-28 sm:h-28" showText={false} />
                                 {/* Hanging Chains Connectors on Card */}
                                 <div className="absolute -top-10 left-2 w-[1px] h-12 bg-gold-500/30 -z-10"></div>
                                 <div className="absolute -top-10 right-2 w-[1px] h-12 bg-gold-500/30 -z-10"></div>

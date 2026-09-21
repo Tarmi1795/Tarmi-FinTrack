@@ -20,7 +20,7 @@ export const InstallPWA: React.FC = () => {
   if (!isVisible) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 md:bottom-8 md:right-8 md:left-auto md:w-96 bg-gray-900 border border-gold-500/40 p-4 rounded-2xl shadow-2xl z-[100] animate-slide-up backdrop-blur-xl">
+    <div className="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] left-4 right-4 md:bottom-8 md:right-8 md:left-auto md:w-96 bg-gray-900 border border-gold-500/40 p-4 rounded-2xl shadow-2xl z-[100] animate-slide-up backdrop-blur-xl">
        <div className="flex items-start justify-between gap-4">
            <div className="flex gap-4">
                 <div className="p-3 bg-gradient-to-br from-gold-500 to-amber-600 rounded-xl text-black shadow-lg shadow-gold-500/20 shrink-0 h-12 w-12 flex items-center justify-center">

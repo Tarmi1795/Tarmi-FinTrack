@@ -203,26 +203,26 @@ export const Budget: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-6 pb-20 md:pb-0 animate-slide-up">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="space-y-4 md:space-y-6 animate-slide-up">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
         <div>
-            <h1 className="text-3xl font-bold text-white tracking-tight">Budget Planner</h1>
+            <h1 className="text-xl md:text-3xl font-bold text-white tracking-tight">Budget Planner</h1>
             <p className="text-gray-400 text-sm">
-                {viewMode === 'monthly' 
-                    ? `Allocate funds for ${format(selectedDate, 'MMMM yyyy')}` 
+                {viewMode === 'monthly'
+                    ? `Allocate funds for ${format(selectedDate, 'MMMM yyyy')}`
                     : `Yearly Aggregation for ${format(selectedDate, 'yyyy')}`
                 }
             </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="tab-scroll md:overflow-visible flex items-center gap-2 md:gap-4 w-full md:w-auto">
             <div className="bg-gray-900 rounded-lg p-1 border border-gray-700 flex">
                 <button onClick={() => setViewMode('monthly')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'monthly' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}>Monthly</button>
                 <button onClick={() => setViewMode('yearly')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'yearly' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}>Yearly</button>
             </div>
-            <div className="flex items-center gap-2 bg-gray-900 rounded-lg p-1 border border-gray-700">
-                <button onClick={() => changePeriod(-1)} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400"><ChevronLeft size={20}/></button>
-                <span className="font-mono text-sm font-bold w-32 text-center text-white">{viewMode === 'monthly' ? format(selectedDate, 'MMM yyyy') : format(selectedDate, 'yyyy')}</span>
-                <button onClick={() => changePeriod(1)} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400"><ChevronRight size={20}/></button>
+            <div className="flex items-center gap-1 bg-gray-900 rounded-lg p-1 border border-gray-700">
+                <button onClick={() => changePeriod(-1)} aria-label="Previous period" className="p-2.5 hover:bg-gray-800 rounded-lg text-gray-400 active:scale-90 transition-transform"><ChevronLeft size={20}/></button>
+                <span className="font-mono text-sm font-bold w-24 md:w-32 text-center text-white">{viewMode === 'monthly' ? format(selectedDate, 'MMM yyyy') : format(selectedDate, 'yyyy')}</span>
+                <button onClick={() => changePeriod(1)} aria-label="Next period" className="p-2.5 hover:bg-gray-800 rounded-lg text-gray-400 active:scale-90 transition-transform"><ChevronRight size={20}/></button>
             </div>
             {viewMode === 'monthly' && (
                 <button 
@@ -253,8 +253,8 @@ export const Budget: React.FC = () => {
       )}
 
       {/* Overview Card */}
-      <div className="glass-card p-6 rounded-2xl flex flex-col md:flex-row items-center gap-8 border border-white/5 bg-gray-900/50">
-           <div className="relative w-32 h-32 flex-shrink-0">
+      <div className="glass-card p-4 md:p-6 rounded-2xl flex flex-col md:flex-row items-center gap-4 md:gap-8 border border-white/5 bg-gray-900/50">
+           <div className="relative w-24 h-24 md:w-32 md:h-32 flex-shrink-0">
                <ResponsiveContainer width="100%" height="100%">
                    <PieChart>
                        <Pie data={chartData} innerRadius={35} outerRadius={50} dataKey="value" stroke="none">
@@ -267,19 +267,19 @@ export const Budget: React.FC = () => {
                    <span className={`font-bold ${percentage > 100 ? 'text-red-500' : 'text-blue-500'}`}>{percentage.toFixed(0)}%</span>
                </div>
            </div>
-           
-           <div className="flex-1 grid grid-cols-2 md:grid-cols-3 gap-6 text-center md:text-left">
+
+           <div className="flex-1 w-full grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 text-center md:text-left">
                <div>
-                   <p className="text-xs uppercase text-gray-500 font-bold">Total Budget</p>
-                   <p className="text-2xl font-bold text-white mt-1">{currency} {totalBudget.toLocaleString()}</p>
+                   <p className="text-[11px] md:text-xs uppercase text-gray-500 font-bold">Total Budget</p>
+                   <p className="text-lg md:text-2xl font-bold text-white mt-1 font-mono">{currency} {totalBudget.toLocaleString()}</p>
                </div>
                <div>
-                   <p className="text-xs uppercase text-gray-500 font-bold">Actual Spent</p>
-                   <p className={`text-2xl font-bold mt-1 ${totalActual > totalBudget ? 'text-red-400' : 'text-white'}`}>{currency} {totalActual.toLocaleString()}</p>
+                   <p className="text-[11px] md:text-xs uppercase text-gray-500 font-bold">Actual Spent</p>
+                   <p className={`text-lg md:text-2xl font-bold mt-1 font-mono ${totalActual > totalBudget ? 'text-red-400' : 'text-white'}`}>{currency} {totalActual.toLocaleString()}</p>
                </div>
-               <div>
-                   <p className="text-xs uppercase text-gray-500 font-bold">Remaining</p>
-                   <p className={`text-2xl font-bold mt-1 ${remaining < 0 ? 'text-red-500' : 'text-emerald-400'}`}>{currency} {remaining.toLocaleString()}</p>
+               <div className="col-span-2 md:col-span-1">
+                   <p className="text-[11px] md:text-xs uppercase text-gray-500 font-bold">Remaining</p>
+                   <p className={`text-lg md:text-2xl font-bold mt-1 font-mono ${remaining < 0 ? 'text-red-500' : 'text-emerald-400'}`}>{currency} {remaining.toLocaleString()}</p>
                </div>
            </div>
       </div>
@@ -298,18 +298,19 @@ export const Budget: React.FC = () => {
                   const catPercent = limit > 0 ? (spent / limit) * 100 : 0;
 
                   return (
-                      <div key={cat.id} className={`bg-gray-950/50 border ${viewMode === 'yearly' ? 'border-gray-800/50' : 'border-gray-800'} p-4 rounded-xl flex flex-col gap-3 group hover:border-gray-700 transition-colors`}>
-                          <div className="flex justify-between items-start">
-                              <div className="flex items-center gap-2">
+                      <div key={cat.id} className={`bg-gray-950/50 border ${viewMode === 'yearly' ? 'border-gray-800/50' : 'border-gray-800'} p-3.5 md:p-4 rounded-xl flex flex-col gap-3 group hover:border-gray-700 transition-colors`}>
+                          <div className="flex justify-between items-start gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
                                   {/* No color in new Account, use generic dot */}
-                                  <div className="w-2 h-2 rounded-full bg-blue-500"/>
-                                  <span className="font-medium text-gray-300">{cat.name}</span>
+                                  <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0"/>
+                                  <span className="font-medium text-gray-300 truncate">{cat.name}</span>
                               </div>
-                              <div className={`flex items-center gap-1 bg-gray-900 rounded-lg border border-gray-800 px-2 py-1 transition-all ${viewMode === 'monthly' ? 'focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500' : 'opacity-70 cursor-not-allowed'}`}>
+                              <div className={`flex items-center gap-1 bg-gray-900 rounded-lg border border-gray-800 px-2.5 py-2 transition-all shrink-0 ${viewMode === 'monthly' ? 'focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500' : 'opacity-70 cursor-not-allowed'}`}>
                                   {viewMode === 'yearly' && <Lock size={10} className="text-gray-600" />}
                                   <span className="text-xs text-gray-500">{currency}</span>
-                                  <input 
-                                    type="number" 
+                                  <input
+                                    type="number"
+                                    inputMode="decimal"
                                     className={`w-20 bg-transparent text-right text-sm font-bold text-white outline-none ${viewMode === 'yearly' ? 'cursor-not-allowed text-gray-400' : ''}`}
                                     placeholder="0"
                                     value={limit || ''}

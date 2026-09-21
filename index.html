@@ -87,21 +87,45 @@
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-      body { 
-        font-family: 'Inter', sans-serif; 
+      body {
+        font-family: 'Inter', sans-serif;
         background-color: #12100d; /* Brand Deep Dark Background */
-        background-image: 
+        background-image:
           radial-gradient(at 0% 0%, rgba(255, 255, 255, 0.03) 0px, transparent 50%),
           radial-gradient(at 100% 100%, rgba(20, 20, 20, 1) 0px, transparent 50%);
         color: #f3f4f6;
         color-scheme: dark;
         min-height: 100vh;
+        min-height: 100dvh;
+        -webkit-tap-highlight-color: transparent;
         /* Handle safe area insets for mobile */
         padding-top: env(safe-area-inset-top);
         padding-bottom: env(safe-area-inset-bottom);
         padding-left: env(safe-area-inset-left);
         padding-right: env(safe-area-inset-right);
       }
+
+      /* Remove 300ms tap delay without blocking pinch-zoom */
+      button, a, input, select, textarea, label, [role="button"] {
+        touch-action: manipulation;
+      }
+
+      /* Horizontally scrollable tab strip (mobile-first navigation within pages) */
+      .tab-scroll {
+        display: flex;
+        gap: 0.5rem;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        scroll-snap-type: x proximity;
+        margin-left: -1rem;
+        margin-right: -1rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+      }
+      .tab-scroll::-webkit-scrollbar { display: none; }
+      .tab-scroll > * { scroll-snap-align: start; flex-shrink: 0; }
       /* Custom Scrollbar */
       ::-webkit-scrollbar {
         width: 6px;
@@ -211,17 +235,30 @@
       }
       
       @media (max-width: 767px) {
+        /* Prevent iOS focus auto-zoom: inputs must render at 16px */
+        input, select, textarea { font-size: 16px !important; }
+        /* Calmer mobile surfaces: drop decorative background/glow paint cost */
+        body { background-image: none; }
+        .text-gold-gradient { text-shadow: none; }
         .mobile-safe-main {
-          padding-top: calc(4.5rem + env(safe-area-inset-top)) !important;
-          padding-bottom: calc(7rem + env(safe-area-inset-bottom)) !important;
+          padding-top: calc(3.75rem + env(safe-area-inset-top)) !important;
+          padding-bottom: calc(5.75rem + env(safe-area-inset-bottom)) !important;
           padding-left: calc(1rem + env(safe-area-inset-left)) !important;
           padding-right: calc(1rem + env(safe-area-inset-right)) !important;
         }
         .chat-safe-layout {
-          bottom: calc(1rem + env(safe-area-inset-bottom)) !important;
+          bottom: calc(5.75rem + env(safe-area-inset-bottom)) !important;
           right: calc(1rem + env(safe-area-inset-right)) !important;
           left: calc(1rem + env(safe-area-inset-left)) !important;
           width: calc(100vw - 2rem - env(safe-area-inset-left) - env(safe-area-inset-right)) !important;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
         }
       }
 

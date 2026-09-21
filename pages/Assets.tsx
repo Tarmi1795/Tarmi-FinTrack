@@ -296,10 +296,10 @@ export const Assets: React.FC = () => {
   }, 0);
 
   return (
-    <div className="space-y-6 pb-20 md:pb-0 animate-fade-in">
-      <div className="flex justify-between items-center">
+    <div className="space-y-4 md:space-y-6 animate-fade-in">
+      <div className="flex justify-between items-center gap-3">
         <div>
-            <h1 className="text-2xl font-bold text-gray-100">Fixed Assets</h1>
+            <h1 className="text-xl md:text-2xl font-bold text-gray-100">Fixed Assets</h1>
             <p className="text-gray-400 text-sm">Subsidiary Ledger & Automatic Depreciation</p>
         </div>
         <button 
@@ -312,14 +312,14 @@ export const Assets: React.FC = () => {
       </div>
 
       {/* Summary Card */}
-      <div className="bg-indigo-900/20 border border-indigo-900/30 p-6 rounded-2xl flex items-center justify-between shadow-lg">
-          <div>
-            <p className="text-indigo-400 text-sm font-medium uppercase tracking-wider">Total Book Value</p>
-            <p className="text-3xl font-bold text-indigo-300 mt-1">{currency} {totalBookValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</p>
+      <div className="bg-indigo-900/20 border border-indigo-900/30 p-4 md:p-6 rounded-2xl flex items-center justify-between shadow-lg">
+          <div className="min-w-0">
+            <p className="text-indigo-400 text-xs md:text-sm font-medium uppercase tracking-wider">Total Book Value</p>
+            <p className="text-2xl md:text-3xl font-bold text-indigo-300 mt-1 font-mono truncate">{currency} {totalBookValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</p>
             <p className="text-[10px] text-indigo-500/60 mt-1">Real-time Ledger Calculation</p>
           </div>
-          <div className="bg-indigo-900/40 p-3 rounded-xl text-indigo-400">
-            <Monitor size={32} />
+          <div className="bg-indigo-900/40 p-3 rounded-xl text-indigo-400 shrink-0">
+            <Monitor size={28} />
           </div>
       </div>
 
@@ -343,17 +343,17 @@ export const Assets: React.FC = () => {
                 : addMonths(parseISO(asset.purchaseDate), 1);
 
              return (
-                <div key={asset.id} className="bg-gray-900 border border-gray-800 p-5 rounded-2xl flex flex-col justify-between group relative hover:border-gray-600 hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
+                <div key={asset.id} className="bg-gray-900 border border-gray-800 p-4 md:p-5 rounded-2xl flex flex-col justify-between group relative hover:border-gray-600 hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
                     <div>
                         <div className="flex justify-between items-start">
                             <div className="p-2 bg-gray-800 rounded-lg text-gray-400 mb-3 inline-block">
                                 <Monitor size={20} />
                             </div>
-                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => openEditModal(asset)} className="text-gray-600 hover:text-blue-400 p-1.5 hover:bg-gray-800 rounded active:scale-90 transition-transform">
+                            <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                <button onClick={() => openEditModal(asset)} aria-label="Edit asset" className="text-gray-500 md:text-gray-600 hover:text-blue-400 p-2 hover:bg-gray-800 rounded-lg active:scale-90 transition-transform">
                                     <Pencil size={16} />
                                 </button>
-                                <button onClick={() => handleDelete(asset)} className="text-gray-600 hover:text-red-400 p-1.5 hover:bg-gray-800 rounded active:scale-90 transition-transform">
+                                <button onClick={() => handleDelete(asset)} aria-label="Delete asset" className="text-gray-500 md:text-gray-600 hover:text-red-400 p-2 hover:bg-gray-800 rounded-lg active:scale-90 transition-transform">
                                     <Trash2 size={16} />
                                 </button>
                             </div>

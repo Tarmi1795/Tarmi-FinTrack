@@ -380,7 +380,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 onComplete();
                                 navigate('/apar', { state: { openMode: 'receivable', openSubMode: 'invoice' } });
                             }} 
-                            className="flex items-center justify-center py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest bg-gradient-to-br from-emerald-500/10 to-teal-600/10 hover:from-emerald-500/30 hover:to-teal-600/30 border border-emerald-500/20 hover:border-emerald-500/50 text-emerald-400 transition-all active:scale-95 shadow-lg shadow-emerald-900/5 backdrop-blur-md"
+                            className="flex items-center justify-center py-3 min-h-[44px] rounded-xl text-xs font-bold uppercase tracking-widest bg-gradient-to-br from-emerald-500/10 to-teal-600/10 hover:from-emerald-500/30 hover:to-teal-600/30 border border-emerald-500/20 hover:border-emerald-500/50 text-emerald-400 transition-all active:scale-95 shadow-lg shadow-emerald-900/5 backdrop-blur-md"
                         >
                             AR
                         </button>
@@ -390,7 +390,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 onComplete();
                                 navigate('/apar', { state: { openMode: 'payable', openSubMode: 'bill' } });
                             }} 
-                            className="flex items-center justify-center py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest bg-gradient-to-br from-red-500/10 to-orange-600/10 hover:from-red-500/30 hover:to-orange-600/30 border border-red-500/20 hover:border-red-500/50 text-red-400 transition-all active:scale-95 shadow-lg shadow-red-900/5 backdrop-blur-md"
+                            className="flex items-center justify-center py-3 min-h-[44px] rounded-xl text-xs font-bold uppercase tracking-widest bg-gradient-to-br from-red-500/10 to-orange-600/10 hover:from-red-500/30 hover:to-orange-600/30 border border-red-500/20 hover:border-red-500/50 text-red-400 transition-all active:scale-95 shadow-lg shadow-red-900/5 backdrop-blur-md"
                         >
                             AP
                         </button>
@@ -400,7 +400,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 onComplete();
                                 navigate('/apar', { state: { openMode: 'receivable', openSubMode: 'loan' } });
                             }} 
-                            className="flex items-center justify-center py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest bg-gradient-to-br from-purple-500/10 to-indigo-600/10 hover:from-purple-500/30 hover:to-indigo-600/30 border border-purple-500/20 hover:border-purple-500/50 text-purple-400 transition-all active:scale-95 shadow-lg shadow-purple-900/5 backdrop-blur-md"
+                            className="flex items-center justify-center py-3 min-h-[44px] rounded-xl text-xs font-bold uppercase tracking-widest bg-gradient-to-br from-purple-500/10 to-indigo-600/10 hover:from-purple-500/30 hover:to-indigo-600/30 border border-purple-500/20 hover:border-purple-500/50 text-purple-400 transition-all active:scale-95 shadow-lg shadow-purple-900/5 backdrop-blur-md"
                         >
                             P
                         </button>

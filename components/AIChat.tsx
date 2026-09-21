@@ -36,10 +36,13 @@ export const AIChat: React.FC = () => {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Bottom clearance must clear the mobile tab bar (~56px + safe area)
+  const mobileBottomInset = () => 80;
+
   const getInitialPos = () => {
     if (typeof window === 'undefined') return { x: 0, y: 0 };
     const isMobile = window.innerWidth < 768;
-    const safeBottom = isMobile ? 34 : 0;
+    const safeBottom = isMobile ? mobileBottomInset() : 0;
     const safeRight = isMobile ? 16 : 0;
     return {
       x: window.innerWidth - BUTTON_SIZE - PADDING - safeRight,
@@ -53,7 +56,7 @@ export const AIChat: React.FC = () => {
     const handleResize = () => {
       setSnapPos(prev => {
         const isMobile = window.innerWidth < 768;
-        const safeBottom = isMobile ? 34 : 0;
+        const safeBottom = isMobile ? mobileBottomInset() : 0;
         const safeRight = isMobile ? 16 : 0;
         const isRight = prev.x > window.innerWidth / 2;
         const isBottom = prev.y > window.innerHeight / 2;
@@ -72,7 +75,7 @@ export const AIChat: React.FC = () => {
     const midX = window.innerWidth / 2;
     const midY = window.innerHeight / 2;
     const isMobile = window.innerWidth < 768;
-    const safeBottom = isMobile ? 34 : 0;
+    const safeBottom = isMobile ? mobileBottomInset() : 0;
     const safeRight = isMobile ? 16 : 0;
 
     setSnapPos({
@@ -110,7 +113,7 @@ export const AIChat: React.FC = () => {
             dragMomentum={false}
             onDragEnd={handleDragEnd}
             onClick={() => setIsOpen(true)}
-            className="fixed top-0 left-0 z-[9999] bg-gold-500 text-black w-16 h-16 rounded-full shadow-2xl flex items-center justify-center cursor-grab active:cursor-grabbing"
+            className="fixed top-0 left-0 z-[9999] bg-gold-500 text-black w-14 h-14 md:w-16 md:h-16 rounded-full shadow-2xl flex items-center justify-center cursor-grab active:cursor-grabbing"
             aria-label="Open AI Chat"
             initial={{ scale: 0, opacity: 0, x: snapPos.x, y: snapPos.y }}
             animate={{ scale: 1, opacity: 1, x: snapPos.x, y: snapPos.y }}
@@ -131,7 +134,7 @@ export const AIChat: React.FC = () => {
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-4 right-4 md:bottom-8 md:right-8 w-[90vw] md:w-[400px] h-[500px] max-h-[80vh] bg-gray-950 border border-gold-500/20 rounded-2xl shadow-2xl flex flex-col z-[10000] backdrop-blur-xl overflow-hidden chat-safe-layout"
+            className="fixed bottom-4 right-4 md:bottom-8 md:right-8 w-[90vw] md:w-[400px] h-[460px] max-h-[70dvh] md:h-[500px] md:max-h-[80vh] bg-gray-950 border border-gold-500/20 rounded-2xl shadow-2xl flex flex-col z-[10000] backdrop-blur-xl overflow-hidden chat-safe-layout"
           >
             {/* Header */}
             <div className="chat-header flex items-center justify-between p-4 border-b border-gray-800 bg-gray-900/50 cursor-move">

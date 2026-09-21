@@ -499,20 +499,20 @@ export const Settings: React.FC = () => {
   );
 
   return (
-    <div className="space-y-6 pb-20 md:pb-0">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-          <div><h1 className="text-2xl font-bold text-gray-100">Settings</h1><p className="text-sm text-gray-400">System configuration and data management</p></div>
-          <div className="flex gap-2 flex-wrap justify-end">
-               <button onClick={handleBackup} className="flex items-center gap-2 bg-indigo-900/40 hover:bg-indigo-900/60 text-indigo-300 px-4 py-2 rounded-lg text-sm font-medium border border-indigo-900/50 transition-all hover:scale-105 active:scale-95"><Database size={16} /> Backup</button>
-               <div className="relative"><input type="file" accept=".json" ref={backupInputRef} onChange={handleRestore} className="hidden" id="json-restore"/><label htmlFor="json-restore" className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-200 px-4 py-2 rounded-lg text-sm font-medium border border-gray-700 cursor-pointer transition-all hover:scale-105 active:scale-95"><FileJson size={16} /> Restore</label></div>
-               <button onClick={handleExcelExport} className="flex items-center gap-2 bg-green-900/40 hover:bg-green-900/60 text-green-300 px-4 py-2 rounded-lg text-sm font-medium border border-green-900/50 transition-all hover:scale-105 active:scale-95"><FileSpreadsheet size={16} /> Export</button>
-               <div className="relative"><input type="file" accept=".xlsx" ref={excelInputRef} onChange={handleExcelImport} className="hidden" id="excel-restore"/><label htmlFor="excel-restore" className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-200 px-4 py-2 rounded-lg text-sm font-medium border border-gray-700 cursor-pointer transition-all hover:scale-105 active:scale-95"><Upload size={16} /> Import</label></div>
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-3">
+          <div><h1 className="text-xl md:text-2xl font-bold text-gray-100">Settings</h1><p className="text-sm text-gray-400">System configuration and data management</p></div>
+          <div className="tab-scroll md:flex-wrap md:overflow-visible w-full md:w-auto md:justify-end">
+               <button onClick={handleBackup} className="flex items-center gap-2 bg-indigo-900/40 hover:bg-indigo-900/60 text-indigo-300 px-4 py-2.5 rounded-lg text-sm font-medium border border-indigo-900/50 transition-all active:scale-95"><Database size={16} /> Backup</button>
+               <div className="relative flex-shrink-0"><input type="file" accept=".json" ref={backupInputRef} onChange={handleRestore} className="hidden" id="json-restore"/><label htmlFor="json-restore" className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-200 px-4 py-2.5 rounded-lg text-sm font-medium border border-gray-700 cursor-pointer transition-all active:scale-95"><FileJson size={16} /> Restore</label></div>
+               <button onClick={handleExcelExport} className="flex items-center gap-2 bg-green-900/40 hover:bg-green-900/60 text-green-300 px-4 py-2.5 rounded-lg text-sm font-medium border border-green-900/50 transition-all active:scale-95"><FileSpreadsheet size={16} /> Export</button>
+               <div className="relative flex-shrink-0"><input type="file" accept=".xlsx" ref={excelInputRef} onChange={handleExcelImport} className="hidden" id="excel-restore"/><label htmlFor="excel-restore" className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-200 px-4 py-2.5 rounded-lg text-sm font-medium border border-gray-700 cursor-pointer transition-all active:scale-95"><Upload size={16} /> Import</label></div>
           </div>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+      <div className="tab-scroll md:overflow-visible pb-1">
           {['coa', 'profile', 'parties', 'recurring', 'templates', 'migration', 'danger'].map(t => (
-              <button key={t} onClick={() => setActiveTab(t as Tab)} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all capitalize active:scale-95 ${activeTab === t ? 'bg-primary text-white shadow-lg shadow-blue-900/20' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+              <button key={t} onClick={() => setActiveTab(t as Tab)} className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all capitalize active:scale-95 ${activeTab === t ? 'bg-primary text-white shadow-lg shadow-blue-900/20' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
                   {t === 'coa' && <Book size={16}/>} 
                   {t === 'recurring' && <Repeat size={16}/>} 
                   {t === 'profile' && <Building2 size={16}/>} 

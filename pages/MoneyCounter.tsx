@@ -173,10 +173,10 @@ export const MoneyCounter: React.FC = () => {
       animate={{ opacity: 1, y: 0 }}
       className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 max-w-4xl mx-auto w-full"
     >
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-4 md:mb-8 gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Calculator className="text-gold-500" /> Dynamic Money Counter
+          <h1 className="text-lg md:text-2xl font-bold text-white flex items-center gap-2">
+            <Calculator size={22} className="text-gold-500" /> <span className="truncate">Dynamic Money Counter</span>
           </h1>
           <p className="text-sm text-gray-400 mt-1">Calculate physical cash totals quickly</p>
         </div>
@@ -252,14 +252,14 @@ export const MoneyCounter: React.FC = () => {
       </div>
 
       {/* Sticky Total Header */}
-      <div className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur-md border border-white/10 rounded-2xl p-6 mb-8 shadow-2xl shadow-black/50">
-        <div className="flex flex-col md:flex-row gap-6 items-center justify-between">
-          <div className="text-center md:text-left flex-1">
+      <div className="sticky top-[calc(3.75rem+env(safe-area-inset-top))] md:top-6 z-10 bg-gray-900/95 backdrop-blur-md border border-white/10 rounded-2xl p-4 md:p-6 mb-4 md:mb-8 shadow-xl shadow-black/50">
+        <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-center justify-between">
+          <div className="text-center md:text-left flex-1 w-full">
             <p className="text-xs text-gray-400 uppercase tracking-widest font-bold mb-2 flex items-center gap-2 justify-center md:justify-start">
               <Calculator size={14} className="text-gold-500" /> Physical Cash Count
             </p>
-            <div className="text-5xl font-bold text-gold-gradient font-mono tracking-tight">
-              {totalAmount.toLocaleString()} <span className="text-2xl text-gold-600 ml-1">{activeDenominations[0]?.currency_code || 'QAR'}</span>
+            <div className="text-3xl md:text-5xl font-bold text-gold-gradient font-mono tracking-tight">
+              {totalAmount.toLocaleString()} <span className="text-xl md:text-2xl text-gold-600 ml-1">{activeDenominations[0]?.currency_code || 'QAR'}</span>
             </div>
           </div>
 
@@ -298,18 +298,18 @@ export const MoneyCounter: React.FC = () => {
           </AnimatePresence>
         </div>
         
-        <div className="flex gap-3 mt-6 justify-center md:justify-start">
-          <button 
+        <div className="flex gap-3 mt-4 md:mt-6 justify-center md:justify-start">
+          <button
             onClick={handleClear}
             disabled={totalAmount === 0}
-            className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+            className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2 active:scale-95"
           >
             <RefreshCw size={16} /> Clear
           </button>
-          <button 
+          <button
             onClick={handleSave}
             disabled={totalAmount === 0 || isSaving}
-            className="px-6 py-2.5 bg-gold-600 hover:bg-gold-500 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-gold-500/20"
+            className="px-6 py-3 bg-gold-600 hover:bg-gold-500 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-gold-500/20 active:scale-95"
           >
             <Save size={16} /> {isSaving ? 'Saving...' : 'Save Count'}
           </button>
@@ -330,22 +330,23 @@ export const MoneyCounter: React.FC = () => {
             const subtotal = count * d.value;
             
             return (
-              <div key={d.id} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-gray-800/20 transition-colors">
+              <div key={d.id} className="grid grid-cols-12 gap-2 md:gap-4 p-3 md:p-4 items-center hover:bg-gray-800/20 transition-colors">
                 <div className="col-span-5 md:col-span-4">
                   <div className="font-medium text-white text-sm md:text-base">{d.label}</div>
                   <div className="text-xs text-gray-500 mt-0.5">{d.value} {d.currency_code}</div>
                 </div>
-                
+
                 <div className="col-span-4 md:col-span-4 flex justify-center">
                   <div className="relative w-full max-w-[120px]">
                     <input
                       type="number"
+                      inputMode="numeric"
                       ref={(el) => (inputRefs.current[d.id] = el)}
                       min="0"
                       value={counts[d.id] || ''}
                       onChange={(e) => handleCountChange(d.id, e.target.value)}
                       onKeyDown={(e) => handleKeyDown(e, index)}
-                      className="w-full bg-gray-950 border border-white/10 rounded-xl py-2 px-3 text-center text-white font-mono focus:border-gold-500 focus:ring-1 focus:ring-gold-500 outline-none transition-all"
+                      className="w-full bg-gray-950 border border-white/10 rounded-xl py-2.5 px-3 text-center text-white font-mono focus:border-gold-500 focus:ring-1 focus:ring-gold-500 outline-none transition-all"
                       placeholder="0"
                     />
                   </div>
@@ -406,7 +407,7 @@ export const MoneyCounter: React.FC = () => {
       )}
 
       {toastMessage && (
-        <div className="fixed bottom-4 right-4 z-50 bg-gray-800 border border-gray-700 text-white px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-fade-in">
+        <div className="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] md:bottom-8 right-4 z-50 bg-gray-800 border border-gray-700 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-fade-in">
           <div className={`w-2 h-2 rounded-full ${toastMessage.includes('Failed') ? 'bg-red-500' : 'bg-emerald-500'}`} />
           {toastMessage}
         </div>

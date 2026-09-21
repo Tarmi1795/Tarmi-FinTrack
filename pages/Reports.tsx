@@ -437,24 +437,24 @@ export const Reports: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-20 md:pb-0 animate-fade-in">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 no-print">
-            <div><h1 className="text-3xl font-bold text-white tracking-tight">Financial Reports</h1></div>
+    <div className="space-y-4 md:space-y-6 animate-fade-in">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-3 no-print">
+            <div><h1 className="text-xl md:text-3xl font-bold text-white tracking-tight">Financial Reports</h1></div>
             {activeTab !== 'soa' && (
-                <div className="flex gap-2 bg-gray-900 p-1 rounded-xl border border-gray-700">
-                    <input type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="bg-transparent text-white text-sm px-2 outline-none" />
-                    <span className="text-gray-500">to</span>
-                    <input type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="bg-transparent text-white text-sm px-2 outline-none" />
+                <div className="flex items-center gap-1 bg-gray-900 p-1 rounded-xl border border-gray-700 w-full md:w-auto">
+                    <input type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="bg-transparent text-white text-sm px-2 py-2 outline-none flex-1 min-w-0" />
+                    <span className="text-gray-500 text-sm">→</span>
+                    <input type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({...prev, end: e.target.value}))} className="bg-transparent text-white text-sm px-2 py-2 outline-none flex-1 min-w-0" />
                 </div>
             )}
         </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar no-print">
+        <div className="tab-scroll md:overflow-visible pb-1 no-print">
             {['income_statement', 'balance_sheet', 'cash_flow', 'trial_balance', 'soa'].map(t => (
-                <button 
-                    key={t} 
-                    onClick={() => setActiveTab(t as ReportTab)} 
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${activeTab === t ? 'bg-primary text-white' : 'bg-gray-800 text-gray-400'}`}
+                <button
+                    key={t}
+                    onClick={() => setActiveTab(t as ReportTab)}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap ${activeTab === t ? 'bg-primary text-white' : 'bg-gray-800 text-gray-400'}`}
                 >
                     {t === 'trial_balance' && <Table size={14}/>}
                     {t === 'soa' ? 'SOA' : t.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
@@ -465,9 +465,9 @@ export const Reports: React.FC = () => {
         {/* --- GLOBAL EXPORT BUTTON (Only for non-SOA tabs, SOA has its own control) --- */}
         {activeTab !== 'soa' && (
             <div className="flex justify-end no-print">
-                <button 
+                <button
                     onClick={handleExcelExport}
-                    className="flex items-center gap-2 px-4 py-2 bg-emerald-800 hover:bg-emerald-700 text-white rounded-lg font-bold text-sm transition-colors"
+                    className="flex items-center gap-2 px-4 py-2.5 bg-emerald-800 hover:bg-emerald-700 text-white rounded-lg font-bold text-sm transition-colors active:scale-95"
                 >
                     <FileSpreadsheet size={16} /> Export to Excel
                 </button>
@@ -477,7 +477,7 @@ export const Reports: React.FC = () => {
         {/* --- TABS --- */}
         
         {activeTab === 'trial_balance' && (
-            <div className="glass-card bg-white text-black p-8 rounded-2xl min-h-[600px] shadow-xl">
+            <div className="glass-card bg-white text-black p-4 md:p-8 rounded-2xl min-h-[600px] shadow-xl">
                 <div className="text-center mb-8 border-b border-gray-200 pb-6">
                     <h2 className="text-2xl font-bold text-gray-900 uppercase">{state.businessProfile.name}</h2>
                     <h3 className="text-xl font-medium text-gray-600 mt-2">TRIAL BALANCE</h3>
@@ -529,7 +529,7 @@ export const Reports: React.FC = () => {
         {activeTab === 'soa' ? <StatementOfAccount appState={state} initialAccountId={initialSoaAccount} /> : null}
 
         {activeTab !== 'soa' && activeTab !== 'trial_balance' && (
-            <div className="glass-card bg-white text-black p-8 rounded-2xl min-h-[600px] shadow-xl">
+            <div className="glass-card bg-white text-black p-4 md:p-8 rounded-2xl min-h-[600px] shadow-xl">
                 <div className="text-center mb-8 border-b border-gray-200 pb-6">
                     <h2 className="text-2xl font-bold text-gray-900 uppercase">{state.businessProfile.name}</h2>
                     <h3 className="text-xl font-medium text-gray-600 mt-2">

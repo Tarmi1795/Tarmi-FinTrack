@@ -434,12 +434,12 @@ export const Trading: React.FC = () => {
 
   // --- Page ---
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-4 md:space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
-            <CandlestickChart className="text-gold-500" size={28} />
+          <h1 className="text-xl md:text-3xl font-bold flex items-center gap-2.5">
+            <CandlestickChart className="text-gold-500" size={24} />
             <span className="text-gold-gradient">Trading Portfolio</span>
           </h1>
           <p className="text-gray-500 text-sm mt-1">Multi-broker tracking • consolidated in {baseCurrency}</p>
@@ -571,26 +571,26 @@ export const Trading: React.FC = () => {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        <div className="glass-card p-4">
+        <div className="glass-card p-3.5">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><Landmark size={12} /> Total Capital</div>
-          <p className="font-mono text-lg md:text-xl font-bold text-white mt-2">{fmt(totals.capitalBase)}</p>
+          <p className="font-mono text-base md:text-xl font-bold text-white mt-2 truncate">{fmt(totals.capitalBase)}</p>
           <p className="text-[10px] text-gray-600 mt-0.5">{baseCurrency} • net deposits</p>
         </div>
-        <div className="glass-card p-4">
+        <div className="glass-card p-3.5">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><Wallet size={12} /> Balance Today</div>
-          <p className="font-mono text-lg md:text-xl font-bold text-gold-400 mt-2">{fmt(totals.balanceBase)}</p>
+          <p className="font-mono text-base md:text-xl font-bold text-gold-400 mt-2 truncate">{fmt(totals.balanceBase)}</p>
           <p className="text-[10px] text-gray-600 mt-0.5">{baseCurrency} • latest snapshots</p>
         </div>
-        <div className="glass-card p-4">
+        <div className="glass-card p-3.5">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">
             {totals.pnlBase >= 0 ? <TrendingUp size={12} className="text-emerald-400" /> : <TrendingDown size={12} className="text-red-400" />} Net P/L
           </div>
-          <PnlCell value={totals.pnlBase} />
+          <div className="mt-2"><PnlCell value={totals.pnlBase} /></div>
           <p className="text-[10px] text-gray-600 mt-0.5">{baseCurrency} • balance − capital</p>
         </div>
-        <div className="glass-card p-4">
+        <div className="glass-card p-3.5">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><CandlestickChart size={12} /> ROI</div>
-          <p className={`font-mono text-lg md:text-xl font-bold mt-2 ${totals.roi >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtPct(totals.roi)}</p>
+          <p className={`font-mono text-base md:text-xl font-bold mt-2 ${totals.roi >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtPct(totals.roi)}</p>
           <p className="text-[10px] text-gray-600 mt-0.5">portfolio return on capital</p>
         </div>
       </div>
@@ -609,10 +609,10 @@ export const Trading: React.FC = () => {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
           {fxRates.map((r) => (
-            <div key={r.id} className="flex items-center gap-2 bg-gray-900/70 border border-gray-800 rounded-lg px-3 py-2">
+            <div key={r.id} className="flex items-center gap-2 bg-gray-900/70 border border-gray-800 rounded-lg px-3 py-2.5">
               <span className="text-xs font-bold text-gold-400 w-10 shrink-0">{r.currency}</span>
               <input
-                type="number" step="any" min="0"
+                type="number" step="any" min="0" inputMode="decimal"
                 value={fxDraft[r.currency] ?? ''}
                 onChange={(e) => setFxDraft((d) => ({ ...d, [r.currency]: e.target.value }))}
                 className="w-full bg-transparent text-white font-mono text-sm outline-none text-right"
@@ -945,7 +945,7 @@ export const Trading: React.FC = () => {
         {toast && (
           <motion.div
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-24 md:bottom-8 left-1/2 -translate-x-1/2 z-50 bg-gray-900 border border-gold-500/40 text-gold-300 text-sm font-bold px-5 py-3 rounded-xl shadow-2xl shadow-black/50"
+            className="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] md:bottom-8 left-1/2 -translate-x-1/2 z-50 bg-gray-900 border border-gold-500/40 text-gold-300 text-sm font-bold px-5 py-3 rounded-xl shadow-2xl shadow-black/50"
           >
             {toast}
           </motion.div>
@@ -972,7 +972,7 @@ const IconBtn: React.FC<{ title: string; onClick: () => void; icon: React.ReactN
 const MiniBtn: React.FC<{ label: string; onClick: () => void; icon: React.ReactNode; gold?: boolean; danger?: boolean }> = ({ label, onClick, icon, gold, danger }) => (
   <button
     onClick={onClick}
-    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-colors active:scale-95 ${
+    className={`flex items-center gap-1 px-3 py-2 min-h-[36px] rounded-lg text-[11px] font-bold border transition-colors active:scale-95 ${
       danger ? 'border-gray-800 text-gray-500 hover:text-red-400 hover:border-red-500/30'
       : gold ? 'border-gold-500/40 text-gold-400 hover:bg-gold-500/10'
       : 'border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800'
