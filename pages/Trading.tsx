@@ -12,7 +12,8 @@ import { format, parseISO } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CandlestickChart, Plus, RefreshCw, Trash2, Pencil, History, Link2, Unlink,
-  ArrowDownToLine, ArrowUpFromLine, AlertTriangle, Wallet, Landmark, Scale, X, Check, TrendingUp, TrendingDown
+  ArrowDownToLine, ArrowUpFromLine, AlertTriangle, Wallet, Landmark, Scale, X, Check,
+  TrendingUp, TrendingDown, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
@@ -58,6 +59,7 @@ export const Trading: React.FC = () => {
   const [balanceAccount, setBalanceAccount] = useState<TradingAccount | null>(null);
   const [historyAccount, setHistoryAccount] = useState<TradingAccount | null>(null);
   const [showLinkCard, setShowLinkCard] = useState(false);
+  const [showFxRates, setShowFxRates] = useState(false);
   const [linkSelection, setLinkSelection] = useState('');
 
   // Form fields
@@ -557,14 +559,6 @@ export const Trading: React.FC = () => {
                 <span className="font-mono font-bold text-gray-300">{fmt(totals.balanceBase)}</span>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 mt-2 font-mono text-xs">
-              <span className="text-gray-500">
-                GL − Net Capital: <span className={`font-bold ${Math.abs(glBalance - netInvestedBase) < 0.01 ? 'text-emerald-400' : 'text-amber-400'}`}>{fmt(glBalance - netInvestedBase)}</span>
-              </span>
-              <span className="text-gray-500">
-                GL − Balance Today: <span className={`font-bold ${Math.abs(glBalance - totals.balanceBase) < 0.01 ? 'text-emerald-400' : 'text-amber-400'}`}>{fmt(glBalance - totals.balanceBase)}</span>
-              </span>
-            </div>
           </div>
         )}
       </div>
@@ -595,37 +589,52 @@ export const Trading: React.FC = () => {
         </div>
       </div>
 
-      {/* FX rates */}
+      {/* FX rates (collapsed by default) */}
       <div className="glass-card p-4 md:p-5">
-        <div className="flex items-center justify-between mb-3">
-          <div>
+        <button
+          onClick={() => setShowFxRates((v) => !v)}
+          aria-expanded={showFxRates}
+          className="w-full flex items-center justify-between gap-3"
+        >
+          <div className="text-left">
             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">FX Rates</p>
             <p className="text-xs text-gray-500 mt-0.5">1 unit = X {baseCurrency} • used to consolidate accounts</p>
           </div>
-          <button onClick={handleSaveFxRates} disabled={isSaving}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 hover:bg-gray-800 border border-gray-800 rounded-lg text-xs font-bold text-gold-400 transition-colors active:scale-95 disabled:opacity-50">
-            <Check size={13} /> Save Rates
-          </button>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-          {fxRates.map((r) => (
-            <div key={r.id} className="flex items-center gap-2 bg-gray-900/70 border border-gray-800 rounded-lg px-3 py-2.5">
-              <span className="text-xs font-bold text-gold-400 w-10 shrink-0">{r.currency}</span>
-              <input
-                type="number" step="any" min="0" inputMode="decimal"
-                value={fxDraft[r.currency] ?? ''}
-                onChange={(e) => setFxDraft((d) => ({ ...d, [r.currency]: e.target.value }))}
-                className="w-full bg-transparent text-white font-mono text-sm outline-none text-right"
-              />
-              <span className="text-[10px] text-gray-600 shrink-0">{baseCurrency}</span>
+          <div className="flex items-center gap-2 shrink-0 text-gray-500">
+            {missingRates.length > 0 && <AlertTriangle size={14} className="text-amber-400" />}
+            {showFxRates ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </div>
+        </button>
+        {showFxRates && (
+          <div className="mt-4 pt-4 border-t border-gray-800/70">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs text-gray-500">Edit rates, then save</p>
+              <button onClick={handleSaveFxRates} disabled={isSaving}
+                className="flex items-center gap-1.5 px-3 py-2 bg-gray-900 hover:bg-gray-800 border border-gray-800 rounded-lg text-xs font-bold text-gold-400 transition-colors active:scale-95 disabled:opacity-50">
+                <Check size={13} /> Save Rates
+              </button>
             </div>
-          ))}
-        </div>
-        {missingRates.length > 0 && (
-          <p className="text-xs text-amber-400 mt-3 flex items-center gap-1.5">
-            <AlertTriangle size={13} />
-            No rate saved for {missingRates.join(', ')} — treated as 1:1 until you add a rate above (save, then reload).
-          </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+              {fxRates.map((r) => (
+                <div key={r.id} className="flex items-center gap-2 bg-gray-900/70 border border-gray-800 rounded-lg px-3 py-2.5">
+                  <span className="text-xs font-bold text-gold-400 w-10 shrink-0">{r.currency}</span>
+                  <input
+                    type="number" step="any" min="0" inputMode="decimal"
+                    value={fxDraft[r.currency] ?? ''}
+                    onChange={(e) => setFxDraft((d) => ({ ...d, [r.currency]: e.target.value }))}
+                    className="w-full bg-transparent text-white font-mono text-sm outline-none text-right"
+                  />
+                  <span className="text-[10px] text-gray-600 shrink-0">{baseCurrency}</span>
+                </div>
+              ))}
+            </div>
+            {missingRates.length > 0 && (
+              <p className="text-xs text-amber-400 mt-3 flex items-center gap-1.5">
+                <AlertTriangle size={13} />
+                No rate saved for {missingRates.join(', ')} — treated as 1:1 until you add a rate above (save, then reload).
+              </p>
+            )}
+          </div>
         )}
       </div>
 
@@ -676,7 +685,7 @@ export const Trading: React.FC = () => {
                           {r.lastSnapshotDate && <span> • updated {format(parseISO(r.lastSnapshotDate), 'dd MMM')}</span>}
                         </p>
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono text-gray-300">{fmt(r.capital)}</td>
+                      <td className="px-4 py-3.5 text-right font-mono text-xs text-gray-500">{fmt(r.capital)}</td>
                       <td className="px-4 py-3.5 text-right font-mono font-bold text-gold-400">{r.balance !== null ? fmt(r.balance) : '—'}</td>
                       <td className="px-4 py-3.5 text-right"><PnlCell value={r.pnl} /></td>
                       <td className="px-4 py-3.5 text-right"><PnlCell value={r.roi ?? 0} pct={r.roi} suffix="%" /></td>
@@ -714,12 +723,12 @@ export const Trading: React.FC = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
                     <div className="bg-gray-900/60 rounded-lg p-2.5">
-                      <p className="text-[9px] uppercase tracking-widest text-gray-500 font-bold">Capital</p>
-                      <p className="font-mono text-gray-300 mt-0.5">{fmt(r.capital)} {r.account.currency}</p>
+                      <p className="text-[9px] uppercase tracking-widest text-gray-500 font-bold">Balance Today</p>
+                      <p className="font-mono text-base font-bold text-gold-400 mt-0.5">{r.balance !== null ? `${fmt(r.balance)}` : '—'}</p>
                     </div>
                     <div className="bg-gray-900/60 rounded-lg p-2.5">
-                      <p className="text-[9px] uppercase tracking-widest text-gray-500 font-bold">Balance Today</p>
-                      <p className="font-mono text-gold-400 mt-0.5">{r.balance !== null ? `${fmt(r.balance)}` : '—'}</p>
+                      <p className="text-[9px] uppercase tracking-widest text-gray-500 font-bold">Capital</p>
+                      <p className="font-mono text-[11px] text-gray-500 mt-1">{fmt(r.capital)} {r.account.currency}</p>
                     </div>
                   </div>
                   <div className="flex gap-1.5 mt-3 flex-wrap">
