@@ -13,7 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   CandlestickChart, Plus, RefreshCw, Trash2, Pencil, History, Link2, Unlink,
   ArrowDownToLine, ArrowUpFromLine, AlertTriangle, Wallet, Landmark, Scale, X, Check,
-  TrendingUp, TrendingDown, ChevronDown, ChevronUp, Search, ArrowUpDown
+  TrendingUp, TrendingDown, ChevronDown, ChevronUp, Search, ArrowUpDown, ArrowLeftRight
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
@@ -67,6 +67,12 @@ export const Trading: React.FC = () => {
   const [accountSearch, setAccountSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('custom');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [showTransferForm, setShowTransferForm] = useState(false);
+  const [tfFrom, setTfFrom] = useState('');
+  const [tfTo, setTfTo] = useState('');
+  const [tfAmount, setTfAmount] = useState('');
+  const [tfDate, setTfDate] = useState(todayStr());
+  const [tfNote, setTfNote] = useState('');
 
   // Form fields
   const [fName, setFName] = useState('');
@@ -300,6 +306,21 @@ export const Trading: React.FC = () => {
     }
   };
 
+  // Adjust an account's Balance Today by `delta` (upserts the latest snapshot,
+  // or creates one on `date` when no snapshot exists yet)
+  const applyBalanceDelta = async (acc: TradingAccount, delta: number, rate: number, date: string, note: string) => {
+    if (!user) return;
+    const accSnaps = snapshots
+      .filter((s) => s.account_id === acc.id)
+      .sort((a, b) => a.snap_date.localeCompare(b.snap_date));
+    const latest = accSnaps.length ? accSnaps[accSnaps.length - 1] : null;
+    const newBalance = Math.round(((latest ? Number(latest.balance) : 0) + delta) * 100) / 100;
+    const snapDate = latest && latest.snap_date > date ? latest.snap_date : date;
+    await tradingService.upsertSnapshot(user.id, {
+      account_id: acc.id, balance: newBalance, snap_date: snapDate, fx_rate: rate, note,
+    });
+  };
+
   const handleSaveCashflow = async () => {
     if (!user || !cashflowAccount) return;
     const evaluated = evaluateMathExpression(fAmount);
@@ -318,20 +339,7 @@ export const Trading: React.FC = () => {
       });
 
       // Auto-adjust Balance Today: deposit raises it, withdrawal lowers it
-      const accSnaps = snapshots
-        .filter((s) => s.account_id === cashflowAccount.id)
-        .sort((a, b) => a.snap_date.localeCompare(b.snap_date));
-      const latest = accSnaps.length ? accSnaps[accSnaps.length - 1] : null;
-      const currentBalance = latest ? Number(latest.balance) : 0;
-      const newBalance = Math.round((currentBalance + (cashflowMode === 'deposit' ? value : -value)) * 100) / 100;
-      const snapDate = latest && latest.snap_date > fDate ? latest.snap_date : fDate;
-      await tradingService.upsertSnapshot(user.id, {
-        account_id: cashflowAccount.id,
-        balance: newBalance,
-        snap_date: snapDate,
-        fx_rate: rate,
-        note: `Auto-adjusted after ${cashflowMode}`,
-      });
+      await applyBalanceDelta(cashflowAccount, cashflowMode === 'deposit' ? value : -value, rate, fDate, `Auto-adjusted after ${cashflowMode}`);
 
       setShowCashflowForm(false);
       showToast(cashflowMode === 'deposit' ? 'Deposit recorded — balance updated.' : 'Withdrawal recorded — balance updated.');
@@ -345,33 +353,92 @@ export const Trading: React.FC = () => {
 
   const handleDeleteCashflow = async (flow: TradingCashflow) => {
     if (!user) return;
-    if (!window.confirm('Delete this entry? Its balance adjustment will also be reversed.')) return;
+    // Transfers are stored as two linked legs — delete both together
+    const sibling = flow.bank_account_id
+      ? cashflows.find((f) => f.id === flow.bank_account_id)
+      : cashflows.find((f) => f.bank_account_id === flow.id);
+    const isTransferLeg = !!sibling;
+    if (!window.confirm(isTransferLeg
+      ? 'Delete this transfer? Both legs (source and destination) will be removed and balances reverted.'
+      : 'Delete this entry? Its balance adjustment will also be reversed.')) return;
     setIsSaving(true);
     try {
-      // Reverse the auto balance adjustment (deposit lowered, withdrawal raised)
-      const acc = accounts.find((a) => a.id === flow.account_id);
-      if (acc) {
-        const accSnaps = snapshots
-          .filter((s) => s.account_id === acc.id)
-          .sort((a, b) => a.snap_date.localeCompare(b.snap_date));
-        const latest = accSnaps.length ? accSnaps[accSnaps.length - 1] : null;
-        if (latest) {
-          const amount = Number(flow.amount);
-          const reverted = Math.round((Number(latest.balance) + (flow.flow_type === 'deposit' ? -amount : amount)) * 100) / 100;
-          await tradingService.upsertSnapshot(user.id, {
-            account_id: acc.id,
-            balance: reverted,
-            snap_date: latest.snap_date,
-            fx_rate: rateFor(acc.currency),
-            note: 'Auto-adjusted after entry deletion',
-          });
+      const legs = sibling ? [flow, sibling] : [flow];
+      for (const leg of legs) {
+        const acc = accounts.find((a) => a.id === leg.account_id);
+        if (acc) {
+          const rate = rateFor(acc.currency);
+          const amount = Number(leg.amount);
+          await applyBalanceDelta(acc, leg.flow_type === 'deposit' ? -amount : amount, rate, leg.flow_date, 'Auto-adjusted after entry deletion');
         }
+        await tradingService.deleteCashflow(user.id, leg.id);
       }
-      await tradingService.deleteCashflow(user.id, flow.id);
-      showToast('Entry deleted — balance reverted.');
+      showToast(isTransferLeg ? 'Transfer deleted — balances reverted.' : 'Entry deleted — balance reverted.');
       await loadAll();
     } catch (e: any) {
       handleError(e, 'Failed to delete entry.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // --- Transfers between broker accounts ---
+  const tfFromRow = rows.find((r) => r.account.id === tfFrom);
+  const tfToRow = rows.find((r) => r.account.id === tfTo);
+
+  const transferConverted = useMemo(() => {
+    if (!tfFromRow || !tfToRow) return null;
+    const value = Number(evaluateMathExpression(tfAmount || '0') || 0);
+    if (!value) return null;
+    return Math.round(value * rateFor(tfFromRow.account.currency) / rateFor(tfToRow.account.currency) * 100) / 100;
+  }, [tfFromRow, tfToRow, tfAmount, rateFor]);
+
+  const openTransferForm = () => {
+    setTfFrom(accounts[0]?.id ?? '');
+    setTfTo(accounts.find((a) => a.id !== accounts[0]?.id)?.id ?? '');
+    setTfAmount('');
+    setTfDate(todayStr());
+    setTfNote('');
+    setShowTransferForm(true);
+  };
+
+  const handleTransfer = async () => {
+    if (!user || !tfFromRow || !tfToRow || tfFromRow.account.id === tfToRow.account.id) return;
+    const evaluated = evaluateMathExpression(tfAmount);
+    const value = Number(evaluated);
+    if (evaluated.trim() === '' || isNaN(value) || value <= 0) return;
+    const fromAcc = tfFromRow.account;
+    const toAcc = tfToRow.account;
+    const rateFrom = rateFor(fromAcc.currency);
+    const rateTo = rateFor(toAcc.currency);
+    const converted = Math.round(value * rateFrom / rateTo * 100) / 100;
+    const noteBase = tfNote.trim();
+    setIsSaving(true);
+    try {
+      const outLeg = await tradingService.createCashflow(user.id, {
+        account_id: fromAcc.id,
+        flow_type: 'withdrawal',
+        amount: value,
+        fx_rate: rateFrom,
+        flow_date: tfDate,
+        note: [`Transfer to ${toAcc.name}`, noteBase].filter(Boolean).join(' — '),
+      });
+      await tradingService.createCashflow(user.id, {
+        account_id: toAcc.id,
+        flow_type: 'deposit',
+        amount: converted,
+        fx_rate: rateTo,
+        flow_date: tfDate,
+        note: [`Transfer from ${fromAcc.name}`, noteBase].filter(Boolean).join(' — '),
+        bank_account_id: outLeg.id, // links the two legs so they delete together
+      });
+      await applyBalanceDelta(fromAcc, -value, rateFrom, tfDate, 'Auto-adjusted after transfer');
+      await applyBalanceDelta(toAcc, converted, rateTo, tfDate, 'Auto-adjusted after transfer');
+      setShowTransferForm(false);
+      showToast('Transfer completed.');
+      await loadAll();
+    } catch (e: any) {
+      handleError(e, 'Failed to transfer.');
     } finally {
       setIsSaving(false);
     }
@@ -536,6 +603,14 @@ export const Trading: React.FC = () => {
         <div className="flex gap-2">
           <button onClick={loadAll} className="p-2.5 bg-gray-900 hover:bg-gray-800 border border-gray-800 rounded-xl text-gray-400 hover:text-white transition-colors active:scale-95" title="Refresh">
             <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
+          </button>
+          <button
+            onClick={openTransferForm}
+            disabled={accounts.length < 2}
+            title={accounts.length < 2 ? 'Add at least two accounts to transfer' : 'Transfer between brokers'}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 hover:bg-gray-800 border border-gold-500/40 text-gold-400 font-bold rounded-xl text-sm transition-all active:scale-95 disabled:opacity-40"
+          >
+            <ArrowLeftRight size={16} /> Transfer
           </button>
           <button
             onClick={() => openAccountForm(null)}
@@ -1016,6 +1091,82 @@ export const Trading: React.FC = () => {
           <button onClick={handleSaveCashflow} disabled={isSaving || !fAmount.trim()}
             className="w-full bg-gradient-to-r from-gold-500 to-amber-400 text-black font-bold py-3 rounded-xl active:scale-95 transition-transform disabled:opacity-40">
             {isSaving ? 'Saving...' : cashflowMode === 'deposit' ? 'Record Deposit' : 'Record Withdrawal'}
+          </button>
+        </div>
+      </Modal>
+
+      {/* Transfer between brokers */}
+      <Modal isOpen={showTransferForm} onClose={() => setShowTransferForm(false)} title="Transfer Between Brokers">
+        <div className="space-y-4">
+          <p className="text-xs text-gray-500 bg-gray-900/60 border border-gray-800 rounded-lg p-3">
+            Moves funds between your brokerage accounts — a withdrawal on one and a deposit on the other, with balances updated automatically. Standalone to this module; nothing in the main app is affected.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>From Account *</label>
+              <SearchableSelect
+                options={accounts.map((a) => ({ id: a.id, label: a.name, subLabel: a.currency }))}
+                value={tfFrom}
+                onChange={(v) => { setTfFrom(v); if (v === tfTo) setTfTo(''); }}
+                placeholder="Select source..."
+              />
+              {tfFromRow && (
+                <p className="text-[10px] text-gray-600 mt-1.5 font-mono">
+                  Balance: {tfFromRow.balance !== null ? `${fmt(Number(tfFromRow.balance))} ${tfFromRow.account.currency}` : '—'}
+                </p>
+              )}
+            </div>
+            <div>
+              <label className={labelCls}>To Account *</label>
+              <SearchableSelect
+                options={accounts.filter((a) => a.id !== tfFrom).map((a) => ({ id: a.id, label: a.name, subLabel: a.currency }))}
+                value={tfTo}
+                onChange={setTfTo}
+                placeholder="Select destination..."
+              />
+              {tfToRow && (
+                <p className="text-[10px] text-gray-600 mt-1.5 font-mono">
+                  Balance: {tfToRow.balance !== null ? `${fmt(Number(tfToRow.balance))} ${tfToRow.account.currency}` : '—'}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Amount ({tfFromRow?.account.currency ?? '—'}) *</label>
+              <input
+                value={tfAmount}
+                onChange={(e) => setTfAmount(e.target.value)}
+                onBlur={() => setTfAmount(tfAmount ? String(evaluateMathExpression(tfAmount)) : '')}
+                placeholder="0.00"
+                className={`${inputCls} font-mono`}
+              />
+              {tfFromRow?.balance !== null && tfFromRow && Number(evaluateMathExpression(tfAmount || '0')) > Number(tfFromRow.balance) && (
+                <p className="text-[10px] text-amber-400 mt-1 flex items-center gap-1">
+                  <AlertTriangle size={11} /> Exceeds current balance
+                </p>
+              )}
+            </div>
+            <div>
+              <label className={labelCls}>Date</label>
+              <input type="date" value={tfDate} onChange={(e) => setTfDate(e.target.value)} className={inputCls} />
+            </div>
+          </div>
+          {transferConverted !== null && tfFromRow && tfToRow && tfFromRow.account.currency !== tfToRow.account.currency && (
+            <p className="text-[11px] text-gray-400 font-mono bg-gray-900/60 border border-gray-800 rounded-lg px-3 py-2">
+              Credited as ≈ {fmt(transferConverted)} {tfToRow.account.currency} @ {fmt(rateFor(tfFromRow.account.currency) / rateFor(tfToRow.account.currency))} {tfFromRow.account.currency}/{tfToRow.account.currency}
+            </p>
+          )}
+          <div>
+            <label className={labelCls}>Note</label>
+            <input value={tfNote} onChange={(e) => setTfNote(e.target.value)} placeholder="Optional" className={inputCls} />
+          </div>
+          <button
+            onClick={handleTransfer}
+            disabled={isSaving || !tfFrom || !tfTo || tfFrom === tfTo || !tfAmount.trim()}
+            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-gold-500 to-amber-400 text-black font-bold py-3 rounded-xl active:scale-95 transition-transform disabled:opacity-40"
+          >
+            <ArrowLeftRight size={16} /> {isSaving ? 'Transferring...' : 'Transfer Funds'}
           </button>
         </div>
       </Modal>
