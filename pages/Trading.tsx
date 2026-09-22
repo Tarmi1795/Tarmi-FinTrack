@@ -13,7 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   CandlestickChart, Plus, RefreshCw, Trash2, Pencil, History, Link2, Unlink,
   ArrowDownToLine, ArrowUpFromLine, AlertTriangle, Wallet, Landmark, Scale, X, Check,
-  TrendingUp, TrendingDown, ChevronDown, ChevronUp
+  TrendingUp, TrendingDown, ChevronDown, ChevronUp, Search, ArrowUpDown
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
@@ -33,6 +33,9 @@ interface AccountRow {
   pnlBase: number | null;
   lastSnapshotDate: string | null;
 }
+
+type SortKey = 'custom' | 'name' | 'broker' | 'currency' | 'capital' | 'balance' | 'pnl' | 'roi';
+const STRING_KEYS: SortKey[] = ['name', 'broker', 'currency'];
 
 export const Trading: React.FC = () => {
   const { user, state, dispatch } = useFinance();
@@ -61,6 +64,9 @@ export const Trading: React.FC = () => {
   const [showLinkCard, setShowLinkCard] = useState(false);
   const [showFxRates, setShowFxRates] = useState(false);
   const [linkSelection, setLinkSelection] = useState('');
+  const [accountSearch, setAccountSearch] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('custom');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   // Form fields
   const [fName, setFName] = useState('');
@@ -166,6 +172,51 @@ export const Trading: React.FC = () => {
     const roi = capitalBase !== 0 ? (pnlBase / capitalBase) * 100 : 0;
     return { capitalBase, balanceBase, pnlBase, roi };
   }, [rows]);
+
+  // Filter + sort for the broker accounts list
+  const visibleRows = useMemo(() => {
+    const q = accountSearch.trim().toLowerCase();
+    const filtered = q
+      ? rows.filter((r) =>
+          [r.account.name, r.account.broker, r.account.currency]
+            .filter(Boolean)
+            .some((v) => v!.toLowerCase().includes(q)))
+      : rows;
+    if (sortKey === 'custom') return filtered;
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      switch (sortKey) {
+        case 'name': return dir * a.account.name.localeCompare(b.account.name);
+        case 'broker': return dir * (a.account.broker || '').localeCompare(b.account.broker || '');
+        case 'currency': return dir * a.account.currency.localeCompare(b.account.currency);
+        case 'capital': return dir * (a.capital - b.capital);
+        case 'balance': return dir * ((a.balance !== null ? Number(a.balance) : -Infinity) - (b.balance !== null ? Number(b.balance) : -Infinity));
+        case 'pnl': return dir * ((a.pnl !== null ? Number(a.pnl) : -Infinity) - (b.pnl !== null ? Number(b.pnl) : -Infinity));
+        case 'roi': return dir * ((a.roi !== null ? a.roi : -Infinity) - (b.roi !== null ? b.roi : -Infinity));
+        default: return 0;
+      }
+    });
+  }, [rows, accountSearch, sortKey, sortDir]);
+
+  const toggleSort = (key: Exclude<SortKey, 'custom'>) => {
+    const defaultDir: 'asc' | 'desc' = STRING_KEYS.includes(key) ? 'asc' : 'desc';
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortDir(defaultDir);
+    } else if (sortDir === defaultDir) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey('custom'); // third click returns to manual order
+    }
+  };
+
+  const sortIcon = (key: Exclude<SortKey, 'custom'>) => (
+    sortKey !== key
+      ? <ArrowUpDown size={11} className="opacity-40" />
+      : sortDir === 'asc'
+        ? <ChevronUp size={12} className="text-gold-400" />
+        : <ChevronDown size={12} className="text-gold-400" />
+  );
 
   const linkedGlAccount: Account | undefined = useMemo(
     () => state.accounts.find((a) => a.id === linkedGlAccountId),
@@ -676,11 +727,54 @@ export const Trading: React.FC = () => {
 
       {/* Accounts */}
       <div className="glass-card overflow-hidden">
-        <div className="px-4 md:px-5 py-4 border-b border-gray-800/70 flex items-center justify-between">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-            Broker Accounts ({accounts.length})
+        <div className="px-4 md:px-5 py-3.5 border-b border-gray-800/70 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 shrink-0">
+            Broker Accounts ({visibleRows.length}{accountSearch && visibleRows.length !== accounts.length ? ` of ${accounts.length}` : ''})
           </p>
-          <p className="text-[10px] text-gray-600 hidden sm:block">P/L = Balance Today − Net Capital</p>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 bg-gray-900/70 border border-gray-800 rounded-lg px-3 py-2 w-full lg:w-56 focus-within:border-gold-500/50 transition-colors">
+              <Search size={14} className="text-gray-500 shrink-0" />
+              <input
+                value={accountSearch}
+                onChange={(e) => setAccountSearch(e.target.value)}
+                placeholder="Filter accounts..."
+                className="w-full bg-transparent text-sm text-white outline-none placeholder-gray-600"
+              />
+              {accountSearch && (
+                <button onClick={() => setAccountSearch('')} aria-label="Clear filter" className="text-gray-500 hover:text-white transition-colors">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <select
+              value={sortKey}
+              onChange={(e) => {
+                const k = e.target.value as SortKey;
+                setSortKey(k);
+                if (k !== 'custom') setSortDir(STRING_KEYS.includes(k) ? 'asc' : 'desc');
+              }}
+              aria-label="Sort accounts"
+              className="md:hidden bg-gray-900/70 border border-gray-800 rounded-lg px-2 py-2 text-xs text-gray-300 outline-none"
+            >
+              <option value="custom">Custom</option>
+              <option value="name">Name</option>
+              <option value="broker">Broker</option>
+              <option value="currency">Currency</option>
+              <option value="capital">Capital</option>
+              <option value="balance">Balance</option>
+              <option value="pnl">P/L</option>
+              <option value="roi">ROI</option>
+            </select>
+            <button
+              onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+              disabled={sortKey === 'custom'}
+              aria-label="Toggle sort direction"
+              className="md:hidden p-2 bg-gray-900/70 border border-gray-800 rounded-lg text-gray-400 disabled:opacity-40 active:scale-95 transition-transform"
+            >
+              {sortDir === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+            <p className="hidden lg:block text-[10px] text-gray-600">P/L = Balance Today − Net Capital</p>
+          </div>
         </div>
 
         {isLoading ? (
@@ -702,16 +796,31 @@ export const Trading: React.FC = () => {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-[10px] uppercase tracking-widest text-gray-500 border-b border-gray-800/70">
-                    <th className="px-5 py-3 font-bold">Account</th>
-                    <th className="px-4 py-3 font-bold text-right">Capital</th>
-                    <th className="px-4 py-3 font-bold text-right">Balance Today</th>
-                    <th className="px-4 py-3 font-bold text-right">P / L</th>
-                    <th className="px-4 py-3 font-bold text-right">ROI</th>
+                    <th className="px-5 py-3 font-bold">
+                      <button onClick={() => toggleSort('name')} className="inline-flex items-center gap-1 hover:text-gray-300 transition-colors">Account {sortIcon('name')}</button>
+                    </th>
+                    <th className="px-4 py-3 font-bold text-right">
+                      <button onClick={() => toggleSort('capital')} className="inline-flex items-center gap-1 hover:text-gray-300 transition-colors">Capital {sortIcon('capital')}</button>
+                    </th>
+                    <th className="px-4 py-3 font-bold text-right">
+                      <button onClick={() => toggleSort('balance')} className="inline-flex items-center gap-1 hover:text-gray-300 transition-colors">Balance Today {sortIcon('balance')}</button>
+                    </th>
+                    <th className="px-4 py-3 font-bold text-right">
+                      <button onClick={() => toggleSort('pnl')} className="inline-flex items-center gap-1 hover:text-gray-300 transition-colors">P / L {sortIcon('pnl')}</button>
+                    </th>
+                    <th className="px-4 py-3 font-bold text-right">
+                      <button onClick={() => toggleSort('roi')} className="inline-flex items-center gap-1 hover:text-gray-300 transition-colors">ROI {sortIcon('roi')}</button>
+                    </th>
                     <th className="px-4 py-3 font-bold text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => (
+                  {visibleRows.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-5 py-8 text-center text-gray-500 text-sm">No accounts match your filter.</td>
+                    </tr>
+                  )}
+                  {visibleRows.map((r) => (
                     <tr key={r.account.id} className="border-b border-gray-800/40 hover:bg-gray-800/30 transition-colors">
                       <td className="px-5 py-3.5">
                         <p className="font-bold text-white">{r.account.name}</p>
@@ -743,7 +852,10 @@ export const Trading: React.FC = () => {
 
             {/* Mobile cards */}
             <div className="md:hidden divide-y divide-gray-800/40">
-              {rows.map((r) => (
+              {visibleRows.length === 0 && (
+                <div className="p-8 text-center text-gray-500 text-sm">No accounts match your filter.</div>
+              )}
+              {visibleRows.map((r) => (
                 <div key={r.account.id} className="p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div>
