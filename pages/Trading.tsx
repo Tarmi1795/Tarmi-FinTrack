@@ -1074,21 +1074,15 @@ export const Trading: React.FC = () => {
                   {/* Category groups */}
                   {categoryGroups.map((g) => (
                     <React.Fragment key={g.category.id}>
-                      <tr className="bg-gray-900/70 border-y border-gray-800/70">
+                      <tr
+                        className="bg-gray-900/70 border-y border-gray-800/70 cursor-pointer select-none hover:bg-gray-800/60 transition-colors"
+                        onClick={() => toggleExpanded(g.category.id)}
+                      >
                         <td colSpan={6} className="px-5 py-2.5">
                           <div className="flex items-center justify-between gap-3 flex-wrap">
                             <div className="flex items-center gap-2">
-                              {g.hasSubcategories ? (
-                                <button
-                                  onClick={() => toggleExpanded(g.category.id)}
-                                  aria-label={expandedCats[g.category.id] ? 'Collapse' : 'Expand'}
-                                  className="p-1 rounded hover:bg-gray-800 text-gold-500 transition-colors"
-                                >
-                                  {expandedCats[g.category.id] ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                                </button>
-                              ) : (
-                                <FolderTree size={13} className="text-gold-500/70" />
-                              )}
+                              {expandedCats[g.category.id] ? <ChevronUp size={14} className="text-gold-500" /> : <ChevronDown size={14} className="text-gold-500" />}
+                              <FolderTree size={13} className="text-gold-500/70" />
                               <span className="text-[11px] font-bold uppercase tracking-widest text-gold-400">{g.category.name}</span>
                               <span className="text-[10px] text-gray-600">{g.agg.count} {g.agg.count === 1 ? 'account' : 'accounts'}</span>
                             </div>
@@ -1103,8 +1097,8 @@ export const Trading: React.FC = () => {
                           </div>
                         </td>
                       </tr>
-                      {g.rows.map((r) => renderDesktopRow(r, true))}
-                      {g.hasSubcategories && expandedCats[g.category.id] && g.subcategories.map((sc) => (
+                      {expandedCats[g.category.id] && g.rows.map((r) => renderDesktopRow(r, true))}
+                      {expandedCats[g.category.id] && g.subcategories.map((sc) => (
                         <React.Fragment key={sc.category.id}>
                           <tr className="bg-gray-900/40 border-b border-gray-800/40">
                             <td colSpan={6} className="pl-12 pr-5 py-2">
@@ -1137,19 +1131,13 @@ export const Trading: React.FC = () => {
               {uncategorizedRows.map((r) => renderMobileCard(r))}
               {categoryGroups.map((g) => (
                 <div key={g.category.id}>
-                  <div className="px-4 py-3 bg-gray-900/70 border-y border-gray-800/70 flex items-center justify-between gap-3">
+                  <div
+                    className="px-4 py-3 bg-gray-900/70 border-y border-gray-800/70 flex items-center justify-between gap-3 cursor-pointer select-none active:bg-gray-800/60 transition-colors"
+                    onClick={() => toggleExpanded(g.category.id)}
+                  >
                     <div className="flex items-center gap-2">
-                      {g.hasSubcategories ? (
-                        <button
-                          onClick={() => toggleExpanded(g.category.id)}
-                          aria-label={expandedCats[g.category.id] ? 'Collapse' : 'Expand'}
-                          className="p-1 rounded hover:bg-gray-800 text-gold-500 transition-colors"
-                        >
-                          {expandedCats[g.category.id] ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-                        </button>
-                      ) : (
-                        <FolderTree size={14} className="text-gold-500/70" />
-                      )}
+                      {expandedCats[g.category.id] ? <ChevronUp size={15} className="text-gold-500" /> : <ChevronDown size={15} className="text-gold-500" />}
+                      <FolderTree size={14} className="text-gold-500/70" />
                       <div>
                         <p className="text-[11px] font-bold uppercase tracking-widest text-gold-400">{g.category.name}</p>
                         <p className="text-[10px] text-gray-600">{g.agg.count} {g.agg.count === 1 ? 'account' : 'accounts'}</p>
@@ -1163,8 +1151,8 @@ export const Trading: React.FC = () => {
                       <p className="text-[9px] text-gray-600">{baseCurrency} • aggregate</p>
                     </div>
                   </div>
-                  {(!g.hasSubcategories || expandedCats[g.category.id]) && g.rows.map((r) => renderMobileCard(r, true))}
-                  {g.hasSubcategories && expandedCats[g.category.id] && g.subcategories.map((sc) => (
+                  {expandedCats[g.category.id] && g.rows.map((r) => renderMobileCard(r, true))}
+                  {expandedCats[g.category.id] && g.subcategories.map((sc) => (
                     <div key={sc.category.id}>
                       <div className="pl-8 pr-4 py-2 bg-gray-900/40 border-b border-gray-800/40 flex items-center justify-between gap-3">
                         <span className="text-[11px] font-bold text-gray-300">↳ {sc.category.name}</span>
