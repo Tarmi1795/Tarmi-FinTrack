@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { tradingService } from '../services/trading';
-import { TradingAccount, TradingCashflow, TradingSnapshot, TradingFxRate, Account } from '../types';
+import { TradingAccount, TradingCashflow, TradingSnapshot, TradingFxRate, TradingCategory, Account } from '../types';
 import { CURRENCIES } from '../constants';
 import { Modal } from '../components/ui/Modal';
 import { SearchableSelect } from '../components/ui/SearchableSelect';
@@ -13,7 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   CandlestickChart, Plus, RefreshCw, Trash2, Pencil, History, Link2, Unlink,
   ArrowDownToLine, ArrowUpFromLine, AlertTriangle, Wallet, Landmark, Scale, X, Check,
-  TrendingUp, TrendingDown, ChevronDown, ChevronUp, Search, ArrowUpDown, ArrowLeftRight
+  TrendingUp, TrendingDown, ChevronDown, ChevronUp, Search, ArrowUpDown, ArrowLeftRight, FolderTree
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
@@ -73,12 +73,19 @@ export const Trading: React.FC = () => {
   const [tfAmount, setTfAmount] = useState('');
   const [tfDate, setTfDate] = useState(todayStr());
   const [tfNote, setTfNote] = useState('');
+  const [categories, setCategories] = useState<TradingCategory[]>([]);
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
+  const [newCatName, setNewCatName] = useState('');
+  const [subCatDrafts, setSubCatDrafts] = useState<Record<string, string>>({});
 
   // Form fields
   const [fName, setFName] = useState('');
   const [fBroker, setFBroker] = useState('');
   const [fCurrency, setFCurrency] = useState('USD');
   const [fNotes, setFNotes] = useState('');
+  const [fCategoryId, setFCategoryId] = useState('');
+  const [fSubCategoryId, setFSubCategoryId] = useState('');
   const [fBalance, setFBalance] = useState('');
   const [fBalanceDate, setFBalanceDate] = useState(todayStr());
   const [fAmount, setFAmount] = useState('');
@@ -105,17 +112,19 @@ export const Trading: React.FC = () => {
     setNeedsMigration(false);
     setLoadError(null);
     try {
-      const [accs, flows, snaps, rates, settings] = await Promise.all([
+      const [accs, flows, snaps, rates, settings, cats] = await Promise.all([
         tradingService.getAccounts(user.id),
         tradingService.getCashflows(user.id),
         tradingService.getSnapshots(user.id),
         tradingService.getFxRates(user.id, baseCurrency),
         tradingService.getSettings(user.id),
+        tradingService.getCategories(user.id),
       ]);
       setAccounts(accs);
       setCashflows(flows);
       setSnapshots(snaps);
       setFxRates(rates);
+      setCategories(cats);
       setLinkedGlAccountId(settings?.linked_gl_account_id ?? null);
       const draft: Record<string, string> = {};
       rates.forEach((r) => { draft[r.currency] = String(r.rate_to_base); });
@@ -224,6 +233,53 @@ export const Trading: React.FC = () => {
         : <ChevronDown size={12} className="text-gold-400" />
   );
 
+  // --- Category grouping (aggregates in base currency) ---
+  interface CatAggregate { capital: number; balance: number; pnl: number; roi: number; count: number; }
+  const aggregateRows = (rs: AccountRow[]): CatAggregate => {
+    const capital = rs.reduce((s, r) => s + r.capitalBase, 0);
+    const balance = rs.reduce((s, r) => s + (r.balanceBase ?? r.capitalBase), 0);
+    const pnl = balance - capital;
+    return { capital, balance, pnl, roi: capital !== 0 ? (pnl / capital) * 100 : 0, count: rs.length };
+  };
+
+  interface SubGroup { category: TradingCategory; rows: AccountRow[]; agg: CatAggregate; }
+  interface CategoryGroup { category: TradingCategory; subcategories: SubGroup[]; rows: AccountRow[]; agg: CatAggregate; hasSubcategories: boolean; }
+
+  const { categoryGroups, uncategorizedRows } = useMemo(() => {
+    const filtering = accountSearch.trim() !== '';
+    const rowMap = new Map(visibleRows.map((r) => [r.account.id, r]));
+    const rowsIn = (catId: string) => visibleRows.filter((r) => r.account.category_id === catId);
+
+    const roots = categories
+      .filter((c) => !c.parent_id)
+      .filter((c) => !filtering || rowsIn(c.id).length > 0 || categories.some((sc) => sc.parent_id === c.id && rowsIn(sc.id).length > 0))
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name));
+
+    const groups: CategoryGroup[] = roots.map((cat) => {
+      const subs = categories
+        .filter((sc) => sc.parent_id === cat.id)
+        .filter((sc) => !filtering || rowsIn(sc.id).length > 0)
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name))
+        .map((sc) => ({ category: sc, rows: rowsIn(sc.id), agg: aggregateRows(rowsIn(sc.id)) }));
+      const direct = rowsIn(cat.id); // accounts assigned to a sub-category live inside that sub-group
+      const all = [...direct, ...subs.flatMap((s) => s.rows)];
+      return {
+        category: cat,
+        subcategories: subs,
+        rows: direct,
+        agg: aggregateRows(all),
+        hasSubcategories: categories.some((sc) => sc.parent_id === cat.id),
+      };
+    });
+
+    const uncat = visibleRows.filter((r) => {
+      const cid = r.account.category_id;
+      return !cid || !categories.some((c) => c.id === cid);
+    });
+
+    return { categoryGroups: groups, uncategorizedRows: uncat };
+  }, [visibleRows, categories, accountSearch]);
+
   const linkedGlAccount: Account | undefined = useMemo(
     () => state.accounts.find((a) => a.id === linkedGlAccountId),
     [state.accounts, linkedGlAccountId]
@@ -246,18 +302,21 @@ export const Trading: React.FC = () => {
   // --- Actions ---
   const handleSaveAccount = async () => {
     if (!user || !fName.trim()) return;
+    const categoryId = fSubCategoryId || fCategoryId || null;
     setIsSaving(true);
     try {
       if (editAccount) {
         await tradingService.updateAccount(user.id, editAccount.id, {
           name: fName.trim(), broker: fBroker.trim() || undefined,
           currency: fCurrency, notes: fNotes.trim() || undefined,
+          category_id: categoryId,
         });
       } else {
         await tradingService.createAccount(user.id, {
           name: fName.trim(), broker: fBroker.trim() || undefined,
           currency: fCurrency, notes: fNotes.trim() || undefined,
           is_active: true, sort_order: accounts.length,
+          category_id: categoryId,
         });
       }
       setShowAccountForm(false);
@@ -525,6 +584,42 @@ export const Trading: React.FC = () => {
     showToast('Chart of Accounts link removed.');
   };
 
+  // --- Category management ---
+  const handleCreateCategory = async (name: string, parentId: string | null) => {
+    if (!user || !name.trim()) return;
+    setIsSaving(true);
+    try {
+      await tradingService.createCategory(user.id, { name: name.trim(), parent_id: parentId, sort_order: categories.length });
+      showToast(parentId ? 'Sub-category added.' : 'Category added.');
+      await loadAll();
+    } catch (e: any) {
+      handleError(e, 'Failed to create category.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteCategory = async (cat: TradingCategory) => {
+    if (!user) return;
+    const childCount = categories.filter((c) => c.parent_id === cat.id).length;
+    const accCount = accounts.filter((a) => a.category_id === cat.id).length;
+    if (!window.confirm(
+      `Delete category "${cat.name}"?`
+      + (childCount ? ` Its ${childCount} sub-category${childCount > 1 ? 's' : ''} will be deleted too.` : '')
+      + (accCount ? ` Its ${accCount} account${accCount > 1 ? 's' : ''} become standalone (they are NOT deleted).` : '')
+    )) return;
+    setIsSaving(true);
+    try {
+      await tradingService.deleteCategory(user.id, cat.id);
+      showToast('Category deleted.');
+      await loadAll();
+    } catch (e: any) {
+      handleError(e, 'Failed to delete category.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // --- Render helpers ---
   const openAccountForm = (acc: TradingAccount | null) => {
     setEditAccount(acc);
@@ -532,6 +627,14 @@ export const Trading: React.FC = () => {
     setFBroker(acc?.broker ?? '');
     setFCurrency(acc?.currency ?? 'USD');
     setFNotes(acc?.notes ?? '');
+    const cat = acc?.category_id ? categories.find((c) => c.id === acc.category_id) : undefined;
+    if (cat?.parent_id) {
+      setFCategoryId(cat.parent_id);
+      setFSubCategoryId(cat.id);
+    } else {
+      setFCategoryId(cat?.id ?? '');
+      setFSubCategoryId('');
+    }
     setShowAccountForm(true);
   };
 
@@ -551,6 +654,70 @@ export const Trading: React.FC = () => {
     setFNote('');
     setShowCashflowForm(true);
   };
+
+  const toggleExpanded = (id: string) => setExpandedCats((s) => ({ ...s, [id]: !s[id] }));
+
+  const renderMobileCard = (r: AccountRow, indent = false) => (
+    <div key={r.account.id} className={`p-4 ${indent ? 'pl-8 border-l-2 border-gold-500/20 ml-3' : ''}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-bold text-white text-sm">{r.account.name}</p>
+          <p className="text-[11px] text-gray-500">
+            {r.account.broker && <span className="text-gold-500/80">{r.account.broker} • </span>}{r.account.currency}
+          </p>
+        </div>
+        <div className="text-right shrink-0">
+          <PnlCell value={r.pnl} pct={r.roi} />
+          <p className="text-[10px] text-gray-600 font-sans">P/L &amp; ROI</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
+        <div className="bg-gray-900/60 rounded-lg p-2.5">
+          <p className="text-[9px] uppercase tracking-widest text-gray-500 font-bold">Balance Today</p>
+          <p className="font-mono text-base font-bold text-gold-400 mt-0.5">{r.balance !== null ? `${fmt(r.balance)}` : '—'}</p>
+        </div>
+        <div className="bg-gray-900/60 rounded-lg p-2.5">
+          <p className="text-[9px] uppercase tracking-widest text-gray-500 font-bold">Capital</p>
+          <p className="font-mono text-[11px] text-gray-500 mt-1">{fmt(r.capital)} {r.account.currency}</p>
+        </div>
+      </div>
+      <div className="flex gap-1.5 mt-3 flex-wrap">
+        <MiniBtn onClick={() => openBalanceForm(r.account)} label="Balance" icon={<CandlestickChart size={13} />} gold />
+        <MiniBtn onClick={() => openCashflowForm(r.account, 'deposit')} label="Deposit" icon={<ArrowDownToLine size={13} />} />
+        <MiniBtn onClick={() => openCashflowForm(r.account, 'withdrawal')} label="Withdraw" icon={<ArrowUpFromLine size={13} />} />
+        <MiniBtn onClick={() => setHistoryAccount(r.account)} label="History" icon={<History size={13} />} />
+        <MiniBtn onClick={() => openAccountForm(r.account)} label="" icon={<Pencil size={13} />} />
+        <MiniBtn onClick={() => handleDeleteAccount(r.account)} label="" icon={<Trash2 size={13} />} danger />
+      </div>
+    </div>
+  );
+
+  const renderDesktopRow = (r: AccountRow, indent: boolean) => (
+    <tr key={r.account.id} className="border-b border-gray-800/40 hover:bg-gray-800/30 transition-colors">
+      <td className={`py-3.5 pr-4 ${indent ? 'pl-10' : 'pl-5'}`}>
+        <p className={`font-bold text-white ${indent ? 'text-sm' : ''}`}>{r.account.name}</p>
+        <p className="text-xs text-gray-500">
+          {r.account.broker && <span className="text-gold-500/80">{r.account.broker} • </span>}
+          {r.account.currency}
+          {r.lastSnapshotDate && <span> • updated {format(parseISO(r.lastSnapshotDate), 'dd MMM')}</span>}
+        </p>
+      </td>
+      <td className="px-4 py-3.5 text-right font-mono text-xs text-gray-500">{fmt(r.capital)}</td>
+      <td className="px-4 py-3.5 text-right font-mono font-bold text-gold-400">{r.balance !== null ? fmt(r.balance) : '—'}</td>
+      <td className="px-4 py-3.5 text-right"><PnlCell value={r.pnl} /></td>
+      <td className="px-4 py-3.5 text-right"><PnlCell value={r.roi ?? 0} pct={r.roi} suffix="%" /></td>
+      <td className="px-4 py-3.5">
+        <div className="flex items-center justify-end gap-1">
+          <IconBtn title="Update balance" onClick={() => openBalanceForm(r.account)} icon={<CandlestickChart size={15} />} />
+          <IconBtn title="Deposit" onClick={() => openCashflowForm(r.account, 'deposit')} icon={<ArrowDownToLine size={15} />} gold />
+          <IconBtn title="Withdraw" onClick={() => openCashflowForm(r.account, 'withdrawal')} icon={<ArrowUpFromLine size={15} />} />
+          <IconBtn title="History" onClick={() => setHistoryAccount(r.account)} icon={<History size={15} />} />
+          <IconBtn title="Edit" onClick={() => openAccountForm(r.account)} icon={<Pencil size={15} />} />
+          <IconBtn title="Delete" onClick={() => handleDeleteAccount(r.account)} icon={<Trash2 size={15} />} danger />
+        </div>
+      </td>
+    </tr>
+  );
 
   const inputCls = "w-full bg-gray-900/70 border border-gray-700 rounded-lg px-3 py-2.5 text-white focus:border-gold-500 focus:ring-1 focus:ring-gold-500/30 outline-none transition-colors";
   const labelCls = "block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1.5";
@@ -807,6 +974,13 @@ export const Trading: React.FC = () => {
             Broker Accounts ({visibleRows.length}{accountSearch && visibleRows.length !== accounts.length ? ` of ${accounts.length}` : ''})
           </p>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowCategoryManager(true)}
+              title="Manage categories"
+              className="p-2.5 bg-gray-900/70 hover:bg-gray-800 border border-gray-800 rounded-lg text-gray-400 hover:text-gold-400 transition-colors active:scale-95"
+            >
+              <FolderTree size={16} />
+            </button>
             <div className="flex items-center gap-2 bg-gray-900/70 border border-gray-800 rounded-lg px-3 py-2 w-full lg:w-56 focus-within:border-gold-500/50 transition-colors">
               <Search size={14} className="text-gray-500 shrink-0" />
               <input
@@ -895,31 +1069,61 @@ export const Trading: React.FC = () => {
                       <td colSpan={6} className="px-5 py-8 text-center text-gray-500 text-sm">No accounts match your filter.</td>
                     </tr>
                   )}
-                  {visibleRows.map((r) => (
-                    <tr key={r.account.id} className="border-b border-gray-800/40 hover:bg-gray-800/30 transition-colors">
-                      <td className="px-5 py-3.5">
-                        <p className="font-bold text-white">{r.account.name}</p>
-                        <p className="text-xs text-gray-500">
-                          {r.account.broker && <span className="text-gold-500/80">{r.account.broker} • </span>}
-                          {r.account.currency}
-                          {r.lastSnapshotDate && <span> • updated {format(parseISO(r.lastSnapshotDate), 'dd MMM')}</span>}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3.5 text-right font-mono text-xs text-gray-500">{fmt(r.capital)}</td>
-                      <td className="px-4 py-3.5 text-right font-mono font-bold text-gold-400">{r.balance !== null ? fmt(r.balance) : '—'}</td>
-                      <td className="px-4 py-3.5 text-right"><PnlCell value={r.pnl} /></td>
-                      <td className="px-4 py-3.5 text-right"><PnlCell value={r.roi ?? 0} pct={r.roi} suffix="%" /></td>
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center justify-end gap-1">
-                          <IconBtn title="Update balance" onClick={() => openBalanceForm(r.account)} icon={<CandlestickChart size={15} />} />
-                          <IconBtn title="Deposit" onClick={() => openCashflowForm(r.account, 'deposit')} icon={<ArrowDownToLine size={15} />} gold />
-                          <IconBtn title="Withdraw" onClick={() => openCashflowForm(r.account, 'withdrawal')} icon={<ArrowUpFromLine size={15} />} />
-                          <IconBtn title="History" onClick={() => setHistoryAccount(r.account)} icon={<History size={15} />} />
-                          <IconBtn title="Edit" onClick={() => openAccountForm(r.account)} icon={<Pencil size={15} />} />
-                          <IconBtn title="Delete" onClick={() => handleDeleteAccount(r.account)} icon={<Trash2 size={15} />} danger />
-                        </div>
-                      </td>
-                    </tr>
+                  {/* Uncategorized standalone accounts */}
+                  {uncategorizedRows.map((r) => renderDesktopRow(r, false))}
+                  {/* Category groups */}
+                  {categoryGroups.map((g) => (
+                    <React.Fragment key={g.category.id}>
+                      <tr className="bg-gray-900/70 border-y border-gray-800/70">
+                        <td colSpan={6} className="px-5 py-2.5">
+                          <div className="flex items-center justify-between gap-3 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              {g.hasSubcategories ? (
+                                <button
+                                  onClick={() => toggleExpanded(g.category.id)}
+                                  aria-label={expandedCats[g.category.id] ? 'Collapse' : 'Expand'}
+                                  className="p-1 rounded hover:bg-gray-800 text-gold-500 transition-colors"
+                                >
+                                  {expandedCats[g.category.id] ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                </button>
+                              ) : (
+                                <FolderTree size={13} className="text-gold-500/70" />
+                              )}
+                              <span className="text-[11px] font-bold uppercase tracking-widest text-gold-400">{g.category.name}</span>
+                              <span className="text-[10px] text-gray-600">{g.agg.count} {g.agg.count === 1 ? 'account' : 'accounts'}</span>
+                            </div>
+                            <div className="flex items-center gap-4 font-mono text-[11px]">
+                              <span className="text-gray-500">Cap <span className="text-gray-300">{fmt(g.agg.capital)}</span></span>
+                              <span className="text-gray-500">Bal <span className="text-gold-400 font-bold">{fmt(g.agg.balance)}</span></span>
+                              <span className={g.agg.pnl >= 0 ? 'text-emerald-400 font-bold' : 'text-red-400 font-bold'}>
+                                {g.agg.pnl >= 0 ? '+' : ''}{fmt(g.agg.pnl)} ({fmtPct(g.agg.roi)})
+                              </span>
+                              <span className="text-gray-600">{baseCurrency}</span>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                      {g.rows.map((r) => renderDesktopRow(r, true))}
+                      {g.hasSubcategories && expandedCats[g.category.id] && g.subcategories.map((sc) => (
+                        <React.Fragment key={sc.category.id}>
+                          <tr className="bg-gray-900/40 border-b border-gray-800/40">
+                            <td colSpan={6} className="pl-12 pr-5 py-2">
+                              <div className="flex items-center justify-between gap-3 flex-wrap">
+                                <span className="text-[11px] font-bold text-gray-300">↳ {sc.category.name}</span>
+                                <div className="flex items-center gap-4 font-mono text-[11px]">
+                                  <span className="text-gray-500">Cap <span className="text-gray-300">{fmt(sc.agg.capital)}</span></span>
+                                  <span className="text-gray-500">Bal <span className="text-gold-400 font-bold">{fmt(sc.agg.balance)}</span></span>
+                                  <span className={sc.agg.pnl >= 0 ? 'text-emerald-400 font-bold' : 'text-red-400 font-bold'}>
+                                    {sc.agg.pnl >= 0 ? '+' : ''}{fmt(sc.agg.pnl)} ({fmtPct(sc.agg.roi)})
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                          {sc.rows.map((r) => renderDesktopRow(r, true))}
+                        </React.Fragment>
+                      ))}
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
@@ -930,38 +1134,50 @@ export const Trading: React.FC = () => {
               {visibleRows.length === 0 && (
                 <div className="p-8 text-center text-gray-500 text-sm">No accounts match your filter.</div>
               )}
-              {visibleRows.map((r) => (
-                <div key={r.account.id} className="p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-bold text-white text-sm">{r.account.name}</p>
-                      <p className="text-[11px] text-gray-500">
-                        {r.account.broker && <span className="text-gold-500/80">{r.account.broker} • </span>}{r.account.currency}
+              {uncategorizedRows.map((r) => renderMobileCard(r))}
+              {categoryGroups.map((g) => (
+                <div key={g.category.id}>
+                  <div className="px-4 py-3 bg-gray-900/70 border-y border-gray-800/70 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      {g.hasSubcategories ? (
+                        <button
+                          onClick={() => toggleExpanded(g.category.id)}
+                          aria-label={expandedCats[g.category.id] ? 'Collapse' : 'Expand'}
+                          className="p-1 rounded hover:bg-gray-800 text-gold-500 transition-colors"
+                        >
+                          {expandedCats[g.category.id] ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                        </button>
+                      ) : (
+                        <FolderTree size={14} className="text-gold-500/70" />
+                      )}
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-gold-400">{g.category.name}</p>
+                        <p className="text-[10px] text-gray-600">{g.agg.count} {g.agg.count === 1 ? 'account' : 'accounts'}</p>
+                      </div>
+                    </div>
+                    <div className="text-right font-mono">
+                      <p className="text-gold-400 font-bold text-sm">{fmt(g.agg.balance)}</p>
+                      <p className={`text-[11px] font-bold ${g.agg.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {g.agg.pnl >= 0 ? '+' : ''}{fmt(g.agg.pnl)} ({fmtPct(g.agg.roi)})
                       </p>
-                    </div>
-                    <div className="text-right">
-                      <PnlCell value={r.pnl} pct={r.roi} />
-                      <p className="text-[10px] text-gray-600 font-sans">P/L &amp; ROI</p>
+                      <p className="text-[9px] text-gray-600">{baseCurrency} • aggregate</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
-                    <div className="bg-gray-900/60 rounded-lg p-2.5">
-                      <p className="text-[9px] uppercase tracking-widest text-gray-500 font-bold">Balance Today</p>
-                      <p className="font-mono text-base font-bold text-gold-400 mt-0.5">{r.balance !== null ? `${fmt(r.balance)}` : '—'}</p>
+                  {(!g.hasSubcategories || expandedCats[g.category.id]) && g.rows.map((r) => renderMobileCard(r, true))}
+                  {g.hasSubcategories && expandedCats[g.category.id] && g.subcategories.map((sc) => (
+                    <div key={sc.category.id}>
+                      <div className="pl-8 pr-4 py-2 bg-gray-900/40 border-b border-gray-800/40 flex items-center justify-between gap-3">
+                        <span className="text-[11px] font-bold text-gray-300">↳ {sc.category.name}</span>
+                        <div className="font-mono text-right">
+                          <span className="text-gold-400 font-bold text-xs">{fmt(sc.agg.balance)}</span>
+                          <span className={`ml-2 text-[11px] font-bold ${sc.agg.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {sc.agg.pnl >= 0 ? '+' : ''}{fmt(sc.agg.pnl)}
+                          </span>
+                        </div>
+                      </div>
+                      {sc.rows.map((r) => renderMobileCard(r, true))}
                     </div>
-                    <div className="bg-gray-900/60 rounded-lg p-2.5">
-                      <p className="text-[9px] uppercase tracking-widest text-gray-500 font-bold">Capital</p>
-                      <p className="font-mono text-[11px] text-gray-500 mt-1">{fmt(r.capital)} {r.account.currency}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-1.5 mt-3 flex-wrap">
-                    <MiniBtn onClick={() => openBalanceForm(r.account)} label="Balance" icon={<CandlestickChart size={13} />} gold />
-                    <MiniBtn onClick={() => openCashflowForm(r.account, 'deposit')} label="Deposit" icon={<ArrowDownToLine size={13} />} />
-                    <MiniBtn onClick={() => openCashflowForm(r.account, 'withdrawal')} label="Withdraw" icon={<ArrowUpFromLine size={13} />} />
-                    <MiniBtn onClick={() => setHistoryAccount(r.account)} label="History" icon={<History size={13} />} />
-                    <MiniBtn onClick={() => openAccountForm(r.account)} label="" icon={<Pencil size={13} />} />
-                    <MiniBtn onClick={() => handleDeleteAccount(r.account)} label="" icon={<Trash2 size={13} />} danger />
-                  </div>
+                  ))}
                 </div>
               ))}
             </div>
@@ -1021,6 +1237,35 @@ export const Trading: React.FC = () => {
           <div>
             <label className={labelCls}>Notes</label>
             <input value={fNotes} onChange={(e) => setFNotes(e.target.value)} placeholder="Optional" className={inputCls} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Category</label>
+              <select
+                value={fCategoryId}
+                onChange={(e) => { setFCategoryId(e.target.value); setFSubCategoryId(''); }}
+                className={inputCls}
+              >
+                <option value="">— None (standalone) —</option>
+                {categories.filter((c) => !c.parent_id).map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Sub-category</label>
+              <select
+                value={fSubCategoryId}
+                onChange={(e) => setFSubCategoryId(e.target.value)}
+                className={inputCls}
+                disabled={!fCategoryId}
+              >
+                <option value="">— None —</option>
+                {categories.filter((c) => c.parent_id === fCategoryId).map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <button onClick={handleSaveAccount} disabled={isSaving || !fName.trim()}
             className="w-full bg-gradient-to-r from-gold-500 to-amber-400 text-black font-bold py-3 rounded-xl active:scale-95 transition-transform disabled:opacity-40">
@@ -1168,6 +1413,97 @@ export const Trading: React.FC = () => {
           >
             <ArrowLeftRight size={16} /> {isSaving ? 'Transferring...' : 'Transfer Funds'}
           </button>
+        </div>
+      </Modal>
+
+      {/* Manage categories */}
+      <Modal isOpen={showCategoryManager} onClose={() => setShowCategoryManager(false)} title="Manage Categories">
+        <div className="space-y-4">
+          <p className="text-xs text-gray-500 bg-gray-900/60 border border-gray-800 rounded-lg p-3">
+            Group broker accounts into categories. A category <span className="text-gold-400 font-bold">with</span> sub-categories
+            gets an accordion breakdown; without them it stays a single aggregate row.
+          </p>
+          <div className="space-y-3">
+            {categories.filter((c) => !c.parent_id).map((cat) => {
+              const subs = categories.filter((c) => c.parent_id === cat.id);
+              const count = accounts.filter((a) => a.category_id === cat.id || subs.some((s) => s.id === a.category_id)).length;
+              return (
+                <div key={cat.id} className="bg-gray-900/60 border border-gray-800 rounded-xl p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-white text-sm flex items-center gap-2">
+                      <FolderTree size={14} className="text-gold-500" />{cat.name}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-gray-600">{count} {count === 1 ? 'account' : 'accounts'}</span>
+                      <IconBtn danger title="Delete category" onClick={() => handleDeleteCategory(cat)} icon={<Trash2 size={14} />} />
+                    </div>
+                  </div>
+                  {subs.map((sub) => (
+                    <div key={sub.id} className="flex items-center justify-between pl-6 mt-1.5">
+                      <span className="text-xs text-gray-400">↳ {sub.name}</span>
+                      <IconBtn danger title="Delete sub-category" onClick={() => handleDeleteCategory(sub)} icon={<Trash2 size={13} />} />
+                    </div>
+                  ))}
+                  <div className="flex gap-2 mt-2.5 pl-6">
+                    <input
+                      value={subCatDrafts[cat.id] ?? ''}
+                      onChange={(e) => setSubCatDrafts((d) => ({ ...d, [cat.id]: e.target.value }))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (subCatDrafts[cat.id] ?? '').trim()) {
+                          handleCreateCategory(subCatDrafts[cat.id], cat.id);
+                          setSubCatDrafts((d) => ({ ...d, [cat.id]: '' }));
+                        }
+                      }}
+                      placeholder="New sub-category..."
+                      className="flex-1 bg-gray-950/70 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-gold-500/50"
+                    />
+                    <button
+                      onClick={() => {
+                        if (!(subCatDrafts[cat.id] ?? '').trim()) return;
+                        handleCreateCategory(subCatDrafts[cat.id], cat.id);
+                        setSubCatDrafts((d) => ({ ...d, [cat.id]: '' }));
+                      }}
+                      disabled={isSaving || !(subCatDrafts[cat.id] ?? '').trim()}
+                      className="px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gold-400 transition-colors active:scale-95 disabled:opacity-40"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+            {categories.length === 0 && (
+              <p className="text-xs text-gray-600 text-center py-4">No categories yet — create one below.</p>
+            )}
+          </div>
+          <div className="border-t border-gray-800 pt-3">
+            <label className={labelCls}>New Category</label>
+            <div className="flex gap-2">
+              <input
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newCatName.trim()) {
+                    handleCreateCategory(newCatName, null);
+                    setNewCatName('');
+                  }
+                }}
+                placeholder="e.g. Vantage, Exness Prop..."
+                className="flex-1 bg-gray-950/70 border border-gray-800 rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-gold-500/50"
+              />
+              <button
+                onClick={() => {
+                  if (!newCatName.trim()) return;
+                  handleCreateCategory(newCatName, null);
+                  setNewCatName('');
+                }}
+                disabled={isSaving || !newCatName.trim()}
+                className="px-4 py-2.5 bg-gradient-to-r from-gold-500 to-amber-400 text-black rounded-lg text-xs font-bold active:scale-95 transition-transform disabled:opacity-40"
+              >
+                Add
+              </button>
+            </div>
+          </div>
         </div>
       </Modal>
 

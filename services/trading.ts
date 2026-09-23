@@ -1,6 +1,6 @@
 
 import { supabase } from './supabase';
-import { TradingAccount, TradingCashflow, TradingSnapshot, TradingFxRate, TradingSettings, CurrencyCode } from '../types';
+import { TradingAccount, TradingCashflow, TradingSnapshot, TradingFxRate, TradingSettings, TradingCategory, CurrencyCode } from '../types';
 
 // Sensible seed rates vs QAR (1 unit of currency = N QAR). User-editable in the UI.
 const DEFAULT_FX_RATES: Partial<Record<CurrencyCode, number>> = {
@@ -56,6 +56,36 @@ export const tradingService = {
   async deleteAccount(userId: string, id: string): Promise<void> {
     const { error } = await supabase
       .from('trading_accounts')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId);
+    if (error) throw error;
+  },
+
+  // --- Categories & sub-categories ---
+  async getCategories(userId: string): Promise<TradingCategory[]> {
+    const { data, error } = await supabase
+      .from('trading_categories')
+      .select('*')
+      .eq('user_id', userId)
+      .order('sort_order', { ascending: true });
+    if (error) throw error;
+    return data ?? [];
+  },
+
+  async createCategory(userId: string, category: { name: string; parent_id?: string | null; sort_order?: number }): Promise<TradingCategory> {
+    const { data, error } = await supabase
+      .from('trading_categories')
+      .insert({ ...category, user_id: userId })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteCategory(userId: string, id: string): Promise<void> {
+    const { error } = await supabase
+      .from('trading_categories')
       .delete()
       .eq('id', id)
       .eq('user_id', userId);

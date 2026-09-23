@@ -62,6 +62,19 @@ CREATE TABLE IF NOT EXISTS public.trading_settings (
     updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- 6. Categories & sub-categories (a sub-category is a category with a parent_id)
+CREATE TABLE IF NOT EXISTS public.trading_categories (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+    name TEXT NOT NULL,
+    parent_id UUID REFERENCES public.trading_categories(id) ON DELETE CASCADE,
+    sort_order INTEGER DEFAULT 0 NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Accounts optionally belong to a category (cleared if the category is deleted)
+ALTER TABLE public.trading_accounts ADD COLUMN IF NOT EXISTS category_id UUID REFERENCES public.trading_categories(id) ON DELETE SET NULL;
+
 -- ============================================================
 -- RLS: enable + per-table policies (idempotent)
 -- ============================================================
@@ -69,7 +82,7 @@ DO $$
 DECLARE
     t TEXT;
 BEGIN
-    FOREACH t IN ARRAY ARRAY['trading_accounts', 'trading_cashflows', 'trading_snapshots', 'trading_fx_rates', 'trading_settings']
+    FOREACH t IN ARRAY ARRAY['trading_accounts', 'trading_cashflows', 'trading_snapshots', 'trading_fx_rates', 'trading_settings', 'trading_categories']
     LOOP
         EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
 
@@ -90,3 +103,5 @@ END $$;
 -- Indexes for the common access paths
 CREATE INDEX IF NOT EXISTS idx_trading_cashflows_account ON public.trading_cashflows(account_id);
 CREATE INDEX IF NOT EXISTS idx_trading_snapshots_account_date ON public.trading_snapshots(account_id, snap_date DESC);
+CREATE INDEX IF NOT EXISTS idx_trading_accounts_category ON public.trading_accounts(category_id);
+CREATE INDEX IF NOT EXISTS idx_trading_categories_parent ON public.trading_categories(parent_id);

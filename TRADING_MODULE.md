@@ -11,11 +11,26 @@ Created by `supabase_trading_migration.sql` (run it in the Supabase SQL Editor):
 
 | Table | Purpose |
 |---|---|
-| `trading_accounts` | One row per brokerage account (name, broker, currency, notes). |
+| `trading_accounts` | One row per brokerage account (name, broker, currency, notes, optional `category_id`). |
+| `trading_categories` | Categories & sub-categories (a sub-category is a row with `parent_id`). Accounts reference them via `trading_accounts.category_id`. |
 | `trading_cashflows` | Deposits / withdrawals per account. Stores the FX rate used and the `gl_transaction_id` of the posted journal entry. |
 | `trading_snapshots` | "Balance today" per account, one per day (`UNIQUE (account_id, snap_date)`; re-saving a date overwrites). Feeds the equity curve. |
 | `trading_fx_rates` | `1 unit of currency = rate_to_base units of base currency`. Seeded with sensible defaults vs QAR on first load, editable in the UI. |
 | `trading_settings` | The single Chart-of-Accounts link (`linked_gl_account_id`). |
+
+## Categories & Sub-categories
+
+Accounts can be grouped into categories (Manage Categories via the folder icon on the accounts card,
+or the Category / Sub-category selects in the account form).
+
+- A category header shows **aggregated Capital, Balance Today, P/L and ROI in the base currency**
+  (accounts inside may have mixed currencies; each account row still shows its own currency).
+- **Accordion rule:** a category *with* sub-categories gets an expandable breakdown
+  (category → sub-category → accounts). A category *without* sub-categories is a flat aggregate
+  header with no accordion — its accounts are simply listed beneath it.
+- Uncategorized accounts (e.g. Exness, Binance) render as standalone top-level rows.
+- Deleting a category does **not** delete its accounts — they become standalone
+  (`ON DELETE SET NULL`); sub-categories cascade-delete.
 
 All tables are user-scoped with RLS (`auth.uid() = user_id`). The module talks to Supabase directly
 (the Money Counter pattern), independent of the `AppState` sync pipeline.

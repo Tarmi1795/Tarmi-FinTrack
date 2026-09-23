@@ -212,8 +212,18 @@ export interface TradingAccount {
   notes?: string;
   is_active: boolean;
   sort_order?: number;
+  category_id?: string | null;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface TradingCategory {
+  id: string;
+  user_id?: string;
+  name: string;
+  parent_id?: string | null; // Set = sub-category of another category
+  sort_order?: number;
+  created_at?: string;
 }
 
 export interface TradingCashflow {
