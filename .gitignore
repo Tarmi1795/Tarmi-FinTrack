@@ -31,6 +31,9 @@ dist-ssr
 # Database backups (contain user data)
 db_backups/
 
+# Secrets (access tokens used by automations)
+secrets/
+
 # AI Agent / IDE Metadata
 .adal/
 .agents/
