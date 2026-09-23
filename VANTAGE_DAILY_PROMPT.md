@@ -38,7 +38,9 @@ For every strategy/account row visible, record:
 - **Strategy ID** if shown (e.g. `A0122030`) — this is the primary match key
 - Account/strategy name exactly as displayed
 - Currency
-- **Balance** (if only Equity is shown, use it and note "equity used")
+- **Equity** if the column exists — store this as the day's balance (confirmed by Tarmi
+  2026-09-23: "balance today is the equity"; Vantage's Balance column excludes floating P/L).
+  Note "equity used". If there is no Equity column, use **Balance** and note "balance used".
 
 ### Step 2 — Match to Trading module accounts
 
@@ -94,5 +96,5 @@ Vantage update — <today>
 ⚠ Unmatched: "New Acct (A10145999)" — tell me the mapping or say 'create'
 ```
 
-Include: accounts updated / skipped / unmatched, any values you read as Equity instead of Balance,
-and any problems.
+Include: accounts updated / skipped / unmatched, which column each stored value came from
+(Equity vs Balance), and any problems.
