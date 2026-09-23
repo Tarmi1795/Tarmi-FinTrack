@@ -57,6 +57,15 @@ Match each screenshot row to a module account:
 For unmatched rows: **do not auto-create.** List them in the report as
 `unmatched — tell me the mapping or say 'create'` (when creating, seed capital = balance − shown P/L).
 
+Accounts in the database that are **absent from the screenshot** (confirmed by Tarmi 2026-09-23):
+- **Vantage strategy accounts** (they have a `Strategy ID:` in `notes`): zero them for today —
+  insert `balance 0` with note `Zeroed - strategy not on Vantage dashboard screenshot`. Absence
+  means the strategy is closed. Flag zeroed accounts loudly in the report; a same-day re-run with
+  a fuller screenshot overwrites today's row back to the real value.
+- **Non-Vantage accounts** (no Strategy ID in notes — e.g. SHERWOOD, Exness, Binance, V-wallet,
+  TradingView): **never zero these.** They never appear on a Vantage dashboard, so absence is
+  expected — leave them completely untouched.
+
 ### Step 3 — Update balances (today only)
 
 For each matched account, with `<today>` = current local date:
@@ -69,6 +78,10 @@ DO UPDATE SET balance = EXCLUDED.balance, note = EXCLUDED.note;
 ```
 
 Leave `fx_rate` NULL — the app converts at current rates.
+
+**Back up first:** before the upsert, dump today's existing rows to
+`backups/trading_snapshots_<today>_pre-vantage-sync.json` (repo-relative) so overwritten values
+stay recoverable.
 
 ### Step 4 — Verify and report
 
