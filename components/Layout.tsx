@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Plus, PieChart, Settings as SettingsIcon, ArrowRightLeft, Monitor,
-  BookOpen, LogOut, Target, Calculator, CandlestickChart, Menu, X,
+  BookOpen, LogOut, Target, Calculator, CandlestickChart, Package, Menu, X,
 } from 'lucide-react';
 import { Modal } from './ui/Modal';
 import { TransactionForm } from './TransactionForm';
@@ -69,6 +69,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     { icon: PieChart, label: 'Reports', to: '/reports' },
     { icon: Calculator, label: 'Money Counter', to: '/money-counter' },
     { icon: CandlestickChart, label: 'Trading', to: '/trading' },
+    { icon: Package, label: 'Inventory', to: '/inventory' },
     { icon: SettingsIcon, label: 'Settings', to: '/settings' },
   ];
 
@@ -85,6 +86,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     { icon: ArrowRightLeft, label: 'AP / AR', to: '/apar' },
     { icon: Monitor, label: 'Assets', to: '/assets' },
     { icon: CandlestickChart, label: 'Trading', to: '/trading' },
+    { icon: Package, label: 'Inventory', to: '/inventory' },
     { icon: Calculator, label: 'Money Counter', to: '/money-counter' },
     { icon: SettingsIcon, label: 'Settings', to: '/settings' },
   ];

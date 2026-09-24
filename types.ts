@@ -264,3 +264,54 @@ export interface TradingSettings {
   linked_gl_account_id?: string; // The "Trading Account" Account.id in the Chart of Accounts
   updated_at?: string;
 }
+
+// --- INVENTORY MODULE (mirrors Supabase tables directly) ---
+
+export interface InventoryItem {
+  id: string;
+  user_id?: string;
+  sku?: string;
+  name: string;
+  unit?: string; // pcs, kg, box...
+  category?: string;
+  quantity: number; // On hand
+  cost_price: number; // Moving-average cost, base currency
+  sale_price?: number;
+  reorder_level?: number;
+  notes?: string;
+  is_active: boolean;
+  // Optional per-item Chart-of-Accounts overrides (fall back to module defaults)
+  inventory_account_id?: string | null;
+  cogs_account_id?: string | null;
+  revenue_account_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface InventoryMovement {
+  id: string;
+  user_id?: string;
+  item_id: string;
+  movement_type: 'purchase' | 'sale' | 'adjustment';
+  quantity: number; // Signed for adjustments (+ found / - shrinkage); positive for purchase/sale
+  unit_cost?: number; // Actual cost on purchase; avg cost used on sale/adjustment-out
+  total_cost?: number;
+  unit_price?: number; // Sale price per unit
+  total_price?: number;
+  payment_account_id?: string | null; // Bank/cash leg for purchase (Cr) and sale (Dr)
+  gl_transaction_ids?: string[]; // Linked journal entries in the main ledger
+  note?: string;
+  movement_date: string; // YYYY-MM-DD
+  created_at?: string;
+}
+
+// Module-level Chart-of-Accounts defaults (Dr/Cr mapping)
+export interface InventorySettings {
+  user_id: string;
+  inventory_account_id?: string | null; // Asset — Dr on purchase, Cr on sale/loss
+  cogs_account_id?: string | null;      // Expense — Dr on sale
+  revenue_account_id?: string | null;   // Revenue — Cr on sale
+  adjustment_account_id?: string | null;// Expense — Dr/Cr on adjustments
+  payment_account_id?: string | null;   // Default bank/cash — Cr on purchase, Dr on sale
+  updated_at?: string;
+}

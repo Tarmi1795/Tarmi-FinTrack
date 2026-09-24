@@ -15,6 +15,7 @@ import { Login } from './pages/Login';
 import { CurrencyOnboarding } from './components/CurrencyOnboarding';
 import { MoneyCounter } from './pages/MoneyCounter';
 import { Trading } from './pages/Trading';
+import { Inventory } from './pages/Inventory';
 
 const AppContent: React.FC = () => {
   const { user, authLoading } = useFinance();
@@ -44,6 +45,7 @@ const AppContent: React.FC = () => {
             <Route path="/reports" element={<Reports />} />
             <Route path="/money-counter" element={<MoneyCounter />} />
             <Route path="/trading" element={<Trading />} />
+            <Route path="/inventory" element={<Inventory />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
