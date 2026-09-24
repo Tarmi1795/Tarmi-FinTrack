@@ -16,6 +16,10 @@ import {
 const todayStr = () => format(new Date(), 'yyyy-MM-dd');
 const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtQty = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 3 });
+// Margin % on selling price (standard retail convention); null when no sale price
+const marginPct = (cost: number, sale?: number | null): number | null =>
+  sale && sale > 0 ? ((sale - cost) / sale) * 100 : null;
+const fmtPct = (n: number) => `${n >= 0 ? '' : '-'}${Math.abs(n).toFixed(1)}%`;
 const genId = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substr(2, 12));
 
 const MovementBadge: React.FC<{ type: InventoryMovement['movement_type'] }> = ({ type }) => {
@@ -187,7 +191,8 @@ export const Inventory: React.FC = () => {
     const stockValue = items.reduce((s, i) => s + i.quantity * i.cost_price, 0);
     const potentialRevenue = items.reduce((s, i) => s + i.quantity * (i.sale_price || 0), 0);
     const lowStock = items.filter((i) => (i.reorder_level ?? 0) > 0 && i.quantity <= (i.reorder_level ?? 0)).length;
-    return { stockValue, potentialRevenue, lowStock };
+    const avgMargin = marginPct(stockValue, potentialRevenue);
+    return { stockValue, potentialRevenue, lowStock, avgMargin };
   }, [items]);
 
   const itemMovements = useMemo(() => (
@@ -532,6 +537,7 @@ export const Inventory: React.FC = () => {
 
   const renderRow = (item: InventoryItem, indent = false) => {
     const low = (item.reorder_level ?? 0) > 0 && item.quantity <= (item.reorder_level ?? 0);
+    const margin = marginPct(item.cost_price, item.sale_price);
     return (
       <tr key={item.id} className="border-b border-gray-800/40 hover:bg-gray-800/30 transition-colors">
         <td className={`py-3.5 pr-4 ${indent ? 'pl-10' : 'pl-5'}`}>
@@ -549,6 +555,13 @@ export const Inventory: React.FC = () => {
         <td className="px-4 py-3.5 text-right font-mono text-xs text-gray-500">{fmt(item.cost_price)}</td>
         <td className="px-4 py-3.5 text-right font-mono font-bold text-gold-400">{fmt(item.quantity * item.cost_price)}</td>
         <td className="px-4 py-3.5 text-right font-mono text-xs text-gray-400">{item.sale_price ? fmt(item.sale_price) : '—'}</td>
+        <td className="px-4 py-3.5 text-right">
+          {margin !== null ? (
+            <span className={`font-mono text-xs font-bold ${margin >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtPct(margin)}</span>
+          ) : (
+            <span className="text-gray-600 text-xs">—</span>
+          )}
+        </td>
         <td className="px-4 py-3.5">
           <div className="flex items-center justify-end gap-1">
             <IconBtn title="Stock In (purchase)" onClick={() => openStockIn(item)} icon={<ArrowDownToLine size={15} />} gold />
@@ -565,6 +578,7 @@ export const Inventory: React.FC = () => {
 
   const renderCard = (item: InventoryItem) => {
     const low = (item.reorder_level ?? 0) > 0 && item.quantity <= (item.reorder_level ?? 0);
+    const margin = marginPct(item.cost_price, item.sale_price);
     return (
       <div key={item.id} className="p-4">
         <div className="flex items-start justify-between gap-2">
@@ -591,6 +605,9 @@ export const Inventory: React.FC = () => {
           <div className="bg-gray-900/60 rounded-lg p-2.5">
             <p className="text-[9px] uppercase tracking-widest text-gray-500 font-bold">Sale Price</p>
             <p className="font-mono text-gray-300 mt-0.5">{item.sale_price ? fmt(item.sale_price) : '—'}</p>
+            {margin !== null && (
+              <p className={`font-mono text-[10px] mt-0.5 ${margin >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtPct(margin)} margin</p>
+            )}
           </div>
         </div>
         <div className="flex gap-1.5 mt-3 flex-wrap">
@@ -743,7 +760,9 @@ export const Inventory: React.FC = () => {
         <div className="glass-card p-3.5">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><TrendingUp size={12} /> Potential Profit</div>
           <p className="font-mono text-base md:text-xl font-bold text-emerald-400 mt-2 truncate">{fmt(Math.max(0, stats.potentialRevenue - stats.stockValue))}</p>
-          <p className="text-[10px] text-gray-600 mt-0.5">{baseCurrency} • if sold at list price</p>
+          <p className="text-[10px] text-gray-600 mt-0.5">
+            {baseCurrency} • {stats.avgMargin !== null ? <span className={stats.avgMargin >= 0 ? 'text-emerald-400/80' : 'text-red-400/80'}>{fmtPct(stats.avgMargin)} margin</span> : 'set sale prices'}
+          </p>
         </div>
       </div>
 
@@ -777,6 +796,7 @@ export const Inventory: React.FC = () => {
                     <th className="px-4 py-3 font-bold text-right">Avg Cost</th>
                     <th className="px-4 py-3 font-bold text-right">Stock Value</th>
                     <th className="px-4 py-3 font-bold text-right">Sale Price</th>
+                    <th className="px-4 py-3 font-bold text-right">Margin</th>
                     <th className="px-4 py-3 font-bold text-right">Actions</th>
                   </tr>
                 </thead>
@@ -829,6 +849,14 @@ export const Inventory: React.FC = () => {
                 inputMode="decimal" placeholder="0.00" className={`${inputCls} font-mono`} />
             </div>
           </div>
+          {marginPct(num(fCost), num(fSale)) !== null && num(fSale) > 0 && (() => {
+            const m = marginPct(num(fCost), num(fSale))!;
+            return (
+              <p className={`text-[11px] font-mono ${m >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                Margin: {fmtPct(m)} • profit {fmt(num(fSale) - num(fCost))} per unit
+              </p>
+            );
+          })()}
           <div>
             <label className={labelCls}>Notes</label>
             <input value={fNotes} onChange={(e) => setFNotes(e.target.value)} placeholder="Optional" className={inputCls} />
@@ -926,7 +954,15 @@ export const Inventory: React.FC = () => {
           {saleItem && num(mQty) > 0 && (
             <div className="text-[11px] text-gray-500 font-mono space-y-0.5">
               <p>Revenue: {fmt(num(mQty) * num(mPrice))} • COGS @ {fmt(saleItem.cost_price)}: {fmt(num(mQty) * saleItem.cost_price)}</p>
-              <p className="text-emerald-400">Margin: {fmt(num(mQty) * num(mPrice) - num(mQty) * saleItem.cost_price)}</p>
+              {(() => {
+                const revenue = num(mQty) * num(mPrice);
+                const m = marginPct(num(mQty) * saleItem.cost_price, revenue);
+                return (
+                  <p className="text-emerald-400">
+                    Margin: {fmt(revenue - num(mQty) * saleItem.cost_price)}{m !== null ? ` (${fmtPct(m)})` : ''}
+                  </p>
+                );
+              })()}
             </div>
           )}
           <div>
