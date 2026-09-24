@@ -48,11 +48,11 @@ Query existing accounts:
 
 ```sql
 SELECT id, name, notes, currency FROM public.trading_accounts
-WHERE user_id = 'f508f7b1-7cc2-4ded-b055-612a852c00c4'
+WHERE user_id = 'f508f7b1-7cc2-4ded-b055-612a852c00c4' AND is_active = true
 ORDER BY sort_order;
 ```
 
-Match each screenshot row to a module account:
+Match each screenshot row to a module account (archived accounts are excluded — they are no longer in use):
 1. **First by Strategy ID** stored in the account's `notes` (`Strategy ID: xxxxx`)
 2. Fall back to name match (case- and punctuation-insensitive)
 

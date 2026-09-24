@@ -13,7 +13,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   CandlestickChart, Plus, RefreshCw, Trash2, Pencil, History, Link2, Unlink,
   ArrowDownToLine, ArrowUpFromLine, AlertTriangle, Wallet, Landmark, Scale, X, Check,
-  TrendingUp, TrendingDown, ChevronDown, ChevronUp, Search, ArrowUpDown, ArrowLeftRight, FolderTree
+  TrendingUp, TrendingDown, ChevronDown, ChevronUp, Search, ArrowUpDown, ArrowLeftRight,
+  FolderTree, Archive, ArchiveRestore
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
@@ -75,6 +76,7 @@ export const Trading: React.FC = () => {
   const [tfNote, setTfNote] = useState('');
   const [categories, setCategories] = useState<TradingCategory[]>([]);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
   const [newCatName, setNewCatName] = useState('');
   const [subCatDrafts, setSubCatDrafts] = useState<Record<string, string>>({});
@@ -159,26 +161,32 @@ export const Trading: React.FC = () => {
     return Array.from(used).filter((c) => !rateMap[c]);
   }, [accounts, rateMap, baseCurrency]);
 
-  const rows: AccountRow[] = useMemo(() => {
-    return accounts.map((account) => {
-      const flows = cashflows.filter((f) => f.account_id === account.id);
-      const capital = flows.reduce((sum, f) => sum + (f.flow_type === 'deposit' ? f.amount : -f.amount), 0);
-      const accSnaps = snapshots
-        .filter((s) => s.account_id === account.id)
-        .sort((a, b) => a.snap_date.localeCompare(b.snap_date));
-      const latest = accSnaps.length ? accSnaps[accSnaps.length - 1] : null;
-      const balance = latest ? latest.balance : null;
-      const pnl = balance !== null ? balance - capital : null;
-      const roi = pnl !== null && capital !== 0 ? (pnl / capital) * 100 : null;
-      return {
-        account, capital, balance, pnl, roi,
-        capitalBase: capital * rateFor(account.currency),
-        balanceBase: balance !== null ? balance * rateFor(account.currency) : null,
-        pnlBase: pnl !== null ? pnl * rateFor(account.currency) : null,
-        lastSnapshotDate: latest ? latest.snap_date : null,
-      };
-    });
-  }, [accounts, cashflows, snapshots, rateFor]);
+  // Active accounts drive the list, aggregates and pickers; archived ones are hidden but kept
+  const activeAccounts = useMemo(() => accounts.filter((a) => a.is_active !== false), [accounts]);
+  const archivedAccounts = useMemo(() => accounts.filter((a) => a.is_active === false), [accounts]);
+
+  const computeRow = useCallback((account: TradingAccount): AccountRow => {
+    const flows = cashflows.filter((f) => f.account_id === account.id);
+    const capital = flows.reduce((sum, f) => sum + (f.flow_type === 'deposit' ? f.amount : -f.amount), 0);
+    const accSnaps = snapshots
+      .filter((s) => s.account_id === account.id)
+      .sort((a, b) => a.snap_date.localeCompare(b.snap_date));
+    const latest = accSnaps.length ? accSnaps[accSnaps.length - 1] : null;
+    const balance = latest ? latest.balance : null;
+    const pnl = balance !== null ? balance - capital : null;
+    const roi = pnl !== null && capital !== 0 ? (pnl / capital) * 100 : null;
+    return {
+      account, capital, balance, pnl, roi,
+      capitalBase: capital * rateFor(account.currency),
+      balanceBase: balance !== null ? balance * rateFor(account.currency) : null,
+      pnlBase: pnl !== null ? pnl * rateFor(account.currency) : null,
+      lastSnapshotDate: latest ? latest.snap_date : null,
+    };
+  }, [cashflows, snapshots, rateFor]);
+
+  const rows: AccountRow[] = useMemo(() => activeAccounts.map(computeRow), [activeAccounts, computeRow]);
+
+  const archivedRows: AccountRow[] = useMemo(() => archivedAccounts.map(computeRow), [archivedAccounts, computeRow]);
 
   const totals = useMemo(() => {
     const capitalBase = rows.reduce((s, r) => s + r.capitalBase, 0);
@@ -288,11 +296,12 @@ export const Trading: React.FC = () => {
   // Net invested capital in base currency at current rates (stored fx_rate is informational only)
   const netInvestedBase = useMemo(() => (
     cashflows.reduce((sum, f) => {
-      const acc = accounts.find((a) => a.id === f.account_id);
-      const rate = acc ? rateFor(acc.currency) : 1;
+      const acc = activeAccounts.find((a) => a.id === f.account_id);
+      if (!acc) return sum; // archived accounts leave the comparison
+      const rate = rateFor(acc.currency);
       return sum + (f.flow_type === 'deposit' ? f.amount : -f.amount) * rate;
     }, 0)
-  ), [cashflows, accounts, rateFor]);
+  ), [cashflows, activeAccounts, rateFor]);
 
   const glBalance = useMemo(
     () => (linkedGlAccountId ? calculateDirectBalance(linkedGlAccountId, state.transactions, 'debit') : 0),
@@ -324,6 +333,35 @@ export const Trading: React.FC = () => {
       await loadAll();
     } catch (e: any) {
       handleError(e, 'Failed to save account.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleArchiveAccount = async (acc: TradingAccount) => {
+    if (!user) return;
+    if (!window.confirm(`Archive "${acc.name}"? It will be hidden from the list, totals and transfers — all data is kept and you can restore it anytime.`)) return;
+    setIsSaving(true);
+    try {
+      await tradingService.updateAccount(user.id, acc.id, { is_active: false });
+      showToast('Account archived.');
+      await loadAll();
+    } catch (e: any) {
+      handleError(e, 'Failed to archive account.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleRestoreAccount = async (acc: TradingAccount) => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      await tradingService.updateAccount(user.id, acc.id, { is_active: true });
+      showToast('Account restored.');
+      await loadAll();
+    } catch (e: any) {
+      handleError(e, 'Failed to restore account.');
     } finally {
       setIsSaving(false);
     }
@@ -453,8 +491,8 @@ export const Trading: React.FC = () => {
   }, [tfFromRow, tfToRow, tfAmount, rateFor]);
 
   const openTransferForm = () => {
-    setTfFrom(accounts[0]?.id ?? '');
-    setTfTo(accounts.find((a) => a.id !== accounts[0]?.id)?.id ?? '');
+    setTfFrom(activeAccounts[0]?.id ?? '');
+    setTfTo(activeAccounts.find((a) => a.id !== activeAccounts[0]?.id)?.id ?? '');
     setTfAmount('');
     setTfDate(todayStr());
     setTfNote('');
@@ -687,6 +725,7 @@ export const Trading: React.FC = () => {
         <MiniBtn onClick={() => openCashflowForm(r.account, 'withdrawal')} label="Withdraw" icon={<ArrowUpFromLine size={13} />} />
         <MiniBtn onClick={() => setHistoryAccount(r.account)} label="History" icon={<History size={13} />} />
         <MiniBtn onClick={() => openAccountForm(r.account)} label="" icon={<Pencil size={13} />} />
+        <MiniBtn onClick={() => handleArchiveAccount(r.account)} label="" icon={<Archive size={13} />} />
         <MiniBtn onClick={() => handleDeleteAccount(r.account)} label="" icon={<Trash2 size={13} />} danger />
       </div>
     </div>
@@ -713,6 +752,7 @@ export const Trading: React.FC = () => {
           <IconBtn title="Withdraw" onClick={() => openCashflowForm(r.account, 'withdrawal')} icon={<ArrowUpFromLine size={15} />} />
           <IconBtn title="History" onClick={() => setHistoryAccount(r.account)} icon={<History size={15} />} />
           <IconBtn title="Edit" onClick={() => openAccountForm(r.account)} icon={<Pencil size={15} />} />
+          <IconBtn title="Archive" onClick={() => handleArchiveAccount(r.account)} icon={<Archive size={15} />} />
           <IconBtn title="Delete" onClick={() => handleDeleteAccount(r.account)} icon={<Trash2 size={15} />} danger />
         </div>
       </td>
@@ -1171,6 +1211,42 @@ export const Trading: React.FC = () => {
             </div>
           </>
         )}
+
+        {/* Archived accounts (hidden from list, totals and transfers) */}
+        {!isLoading && archivedAccounts.length > 0 && (
+          <div className="border-t border-gray-800/70">
+            <button
+              onClick={() => setShowArchived((v) => !v)}
+              className="w-full px-4 md:px-5 py-3 flex items-center justify-between gap-3 text-left"
+              aria-expanded={showArchived}
+            >
+              <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-500">
+                <Archive size={13} />
+                Archived ({archivedAccounts.length})
+              </span>
+              <span className="text-gray-600">{showArchived ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
+            </button>
+            {showArchived && (
+              <div className="px-4 md:px-5 pb-4 space-y-1.5">
+                {archivedRows.map((r) => (
+                  <div key={r.account.id} className="flex items-center justify-between gap-3 bg-gray-900/50 border border-gray-800 rounded-lg px-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-gray-300">{r.account.name}</p>
+                      <p className="text-[10px] text-gray-600 font-mono">
+                        {r.account.currency} • capital {fmt(r.capital)} • balance {r.balance !== null ? fmt(Number(r.balance)) : '—'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <IconBtn title="Restore to list" onClick={() => handleRestoreAccount(r.account)} icon={<ArchiveRestore size={15} />} gold />
+                      <IconBtn title="Delete permanently" onClick={() => handleDeleteAccount(r.account)} icon={<Trash2 size={15} />} danger />
+                    </div>
+                  </div>
+                ))}
+                <p className="text-[10px] text-gray-600">Archived accounts are excluded from totals, transfers and the balance comparison, but keep all their history.</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ============ Modals ============ */}
@@ -1338,7 +1414,7 @@ export const Trading: React.FC = () => {
             <div>
               <label className={labelCls}>From Account *</label>
               <SearchableSelect
-                options={accounts.map((a) => ({ id: a.id, label: a.name, subLabel: a.currency }))}
+                options={activeAccounts.map((a) => ({ id: a.id, label: a.name, subLabel: a.currency }))}
                 value={tfFrom}
                 onChange={(v) => { setTfFrom(v); if (v === tfTo) setTfTo(''); }}
                 placeholder="Select source..."
@@ -1352,7 +1428,7 @@ export const Trading: React.FC = () => {
             <div>
               <label className={labelCls}>To Account *</label>
               <SearchableSelect
-                options={accounts.filter((a) => a.id !== tfFrom).map((a) => ({ id: a.id, label: a.name, subLabel: a.currency }))}
+                options={activeAccounts.filter((a) => a.id !== tfFrom).map((a) => ({ id: a.id, label: a.name, subLabel: a.currency }))}
                 value={tfTo}
                 onChange={setTfTo}
                 placeholder="Select destination..."
@@ -1414,7 +1490,7 @@ export const Trading: React.FC = () => {
           <div className="space-y-3">
             {categories.filter((c) => !c.parent_id).map((cat) => {
               const subs = categories.filter((c) => c.parent_id === cat.id);
-              const count = accounts.filter((a) => a.category_id === cat.id || subs.some((s) => s.id === a.category_id)).length;
+              const count = activeAccounts.filter((a) => a.category_id === cat.id || subs.some((s) => s.id === a.category_id)).length;
               return (
                 <div key={cat.id} className="bg-gray-900/60 border border-gray-800 rounded-xl p-3">
                   <div className="flex items-center justify-between gap-2">
