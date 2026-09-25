@@ -24,6 +24,8 @@ const Inventory = lazy(() => import('./pages/Inventory').then(m => ({ default: m
 const Invoices = lazy(() => import('./pages/Invoices').then(m => ({ default: m.Invoices })));
 const Goals = lazy(() => import('./pages/Goals').then(m => ({ default: m.Goals })));
 const Admin = lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })));
+const OnboardingWizard = lazy(() => import('./components/OnboardingWizard').then(m => ({ default: m.OnboardingWizard })));
+import { isPristineSeed, onboardingFlagKey } from './utils/onboardingFlags';
 
 const PageLoader: React.FC = () => (
   <div className="flex items-center justify-center py-24" role="status" aria-label="Loading page">
@@ -40,7 +42,7 @@ const ModuleRoute: React.FC<{ routeKey: string; children: React.ReactNode }> = (
 };
 
 const AppContent: React.FC = () => {
-  const { user, authLoading } = useFinance();
+  const { user, authLoading, state } = useFinance();
 
   if (authLoading) {
       return (
@@ -58,11 +60,21 @@ const AppContent: React.FC = () => {
     );
   }
 
+  const showOnboarding = user
+    && !!state.businessProfile.baseCurrency
+    && isPristineSeed(state)
+    && localStorage.getItem(onboardingFlagKey(user.id)) !== 'done';
+
   return (
       <HashRouter>
         <Suspense fallback={null}>
           <CurrencyOnboarding />
         </Suspense>
+        {showOnboarding && (
+          <Suspense fallback={<div className="min-h-screen bg-[#12100d]" />}>
+            <OnboardingWizard onComplete={() => window.location.hash = '#/'} />
+          </Suspense>
+        )}
         <Layout>
           <ErrorBoundary>
             <Suspense fallback={<PageLoader />}>

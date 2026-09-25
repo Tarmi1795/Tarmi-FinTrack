@@ -43,6 +43,7 @@ export const Settings: React.FC = () => {
   const [coaSearch, setCoaSearch] = useState('');
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
   const [newAccName, setNewAccName] = useState('');
+  const [newAccDescription, setNewAccDescription] = useState('');
   const [newAccClass, setNewAccClass] = useState<AccountClass>('Expenses');
   const [newAccCode, setNewAccCode] = useState('');
   const [newAccParent, setNewAccParent] = useState('');
@@ -175,9 +176,10 @@ export const Settings: React.FC = () => {
         level: newAccLevel,
         parentId: newAccParent || undefined,
         normalBalance,
-        isPosting: newAccLevel === 'gl' || newAccLevel === 'sub_ledger'
+        isPosting: newAccLevel === 'gl' || newAccLevel === 'sub_ledger',
+        description: newAccDescription.trim() || undefined
     }});
-    setNewAccName(''); setNewAccCode('');
+    setNewAccName(''); setNewAccCode(''); setNewAccDescription('');
   };
 
   const handleEditParty = (party: Party) => {
@@ -487,7 +489,10 @@ export const Settings: React.FC = () => {
                           {editingAccId === node.id ? (
                                 <div className="flex gap-2 flex-1"><input className="w-full px-2 py-1 bg-gray-950 border border-blue-500 rounded text-sm text-white" value={editingAccName} onChange={e => setEditingAccName(e.target.value)} autoFocus /><button onClick={saveEditingAcc} className="text-emerald-500"><Check size={16} /></button><button onClick={cancelEditingAcc} className="text-red-500"><X size={16} /></button></div>
                           ) : (
-                              <div className="flex items-center gap-2 truncate">{isGroup && <Folder size={14} className="text-blue-500/50" />}<span className={`${isGroup ? 'text-gray-200' : 'text-gray-400'} truncate`}>{node.name}</span></div>
+                              <div className="truncate">
+                                <div className="flex items-center gap-2">{isGroup && <Folder size={14} className="text-blue-500/50" />}<span className={`${isGroup ? 'text-gray-200' : 'text-gray-400'} truncate`}>{node.name}</span></div>
+                                {node.description && <p className="text-[10px] text-gray-600 truncate mt-0.5" title={node.description}>{node.description}</p>}
+                              </div>
                           )}
                       </div>
                       <div className="flex items-center gap-4 pl-4">
@@ -893,6 +898,7 @@ export const Settings: React.FC = () => {
                     <div className="md:col-span-2">
                         <label className="text-[10px] uppercase text-gray-500 font-bold mb-1 block">Name</label>
                         <input className="w-full px-3 py-2 bg-gray-800 text-white border border-gray-700 rounded-lg text-sm outline-none focus:border-primary" placeholder="Account Name" value={newAccName} onChange={e => setNewAccName(e.target.value)} />
+                        <input className="w-full px-3 py-2 bg-gray-800 text-white border border-gray-700 rounded-lg text-sm outline-none focus:border-primary mt-2" placeholder="Description — what is this account for?" value={newAccDescription} onChange={e => setNewAccDescription(e.target.value)} />
                     </div>
                     <div>
                         <label className="text-[10px] uppercase text-gray-500 font-bold mb-1 block">Level</label>

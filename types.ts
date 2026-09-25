@@ -32,6 +32,7 @@ export interface Account {
   normalBalance: NormalBalance;
   isSystem?: boolean; // Cannot be deleted
   isPosting: boolean; // Only GL (if no children) or Sub-ledgers accept transactions
+  description?: string; // Plain-language purpose of the account (for users and AI_riane)
   balance?: number; // Calculated at runtime
   children?: Account[]; // For UI Tree rendering
 }

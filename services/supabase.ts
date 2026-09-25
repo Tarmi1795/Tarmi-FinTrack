@@ -21,7 +21,8 @@ try {
 const toDB = {
     account: (a: Account, uid: string) => ({
         id: a.id, user_id: uid, code: a.code, name: a.name, class: a.class, level: a.level,
-        parent_id: a.parentId, normal_balance: a.normalBalance, is_posting: a.isPosting, is_system: a.isSystem
+        parent_id: a.parentId, normal_balance: a.normalBalance, is_posting: a.isPosting, is_system: a.isSystem,
+        description: a.description
     }),
     transaction: (t: Transaction, uid: string) => ({
         id: t.id, user_id: uid, date: t.date, type: t.type, amount: t.amount, original_amount: t.originalAmount,
@@ -67,7 +68,8 @@ const toDB = {
 const fromDB = {
     account: (r: any): Account => ({
         id: r.id, code: r.code, name: r.name, class: r.class, level: r.level,
-        parentId: r.parent_id, normalBalance: r.normal_balance, isPosting: r.is_posting, isSystem: r.is_system
+        parentId: r.parent_id, normalBalance: r.normal_balance, isPosting: r.is_posting, isSystem: r.is_system,
+        description: r.description || undefined
     }),
     transaction: (r: any): Transaction => ({
         id: r.id, date: r.date, type: r.type, amount: r.amount, originalAmount: r.original_amount,

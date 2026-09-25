@@ -5,10 +5,11 @@
 // we precompute a financial summary so answers are faster, cheaper and more accurate.
 
 import { GoogleGenAI } from "@google/genai";
-import { AppState } from '../types';
+import { AppState, Account, AccountClass, AccountLevel, NormalBalance } from '../types';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { buildAccountTree, calculateDirectBalance } from '../utils/accountHierarchy';
 import { adminService } from './admin';
+import { OnboardingAnswers } from '../utils/coaPresets';
 
 const ZAI_ENDPOINTS = [
   'https://api.z.ai/api/paas/v4',        // general API (pay-as-you-go balance)
@@ -110,6 +111,44 @@ export const aiService = {
     adminService.logAiUsage('vision', 'gemini-3-flash-preview', true);
     return answer;
   },
+
+  /**
+   * Generate a tailored chart of accounts from onboarding answers.
+   * Returns null when no provider is configured or output fails validation —
+   * the caller falls back to the deterministic preset builder.
+   */
+  generateChartOfAccounts: async (answers: OnboardingAnswers): Promise<Account[] | null> => {
+    const system = `You are a senior accountant configuring the chart of accounts for a new Tarmi FinTrack user. Reply with ONLY minified JSON — no markdown fences, no commentary.
+
+SCHEMA (array of accounts, hierarchical by code):
+[{"code":"10000","name":"ASSETS","class":"Assets","level":"class","parentCode":null,"normalBalance":"debit","isPosting":false,"isSystem":true,"description":"one plain sentence"}, ...]
+
+STRICT RULES:
+- class ∈ Assets|Liabilities|Equity|Revenue|Expenses; level ∈ class|group|gl|sub_ledger.
+- parentCode references another account's code (null for class roots).
+- isPosting may be true ONLY for level gl or sub_ledger; class/group always false.
+- normalBalance: debit for Assets/Expenses, credit for Liabilities/Equity/Revenue.
+- Description: one clear sentence explaining what belongs in the account (helps the user and the AI CFO later).
+- 15-30 accounts total. Every account MUST have a description.`;
+
+    const user = `Answers from onboarding:
+${JSON.stringify(answers)}
+
+REQUIRED accounts (the app engine depends on these exact codes; include them all):
+- 10000 ASSETS (class) → 11000 Current Assets (group) → 11100 Cash & Cash Equivalents (group) → cash accounts starting 11110 (Main Bank), 11120 (Petty Cash), 11130 (Digital Wallet if the user uses one)
+- 11900 Parties (gl, not posting) under 11000
+- 30000 EQUITY (class) → 31000 Opening Balance Equity + 32000 Retained Earnings
+- 40000 REVENUE (class) → 41000 Operating Revenue (group) → type-specific income accounts starting 411xx
+- 50000 EXPENSES (class) → 60000 Operating Expenses (group) → 60900 Depreciation Expense (system)
+- If products are sold: inventory asset starting 11300 under 11000, plus 51000 Direct Costs (COGS) group with cost accounts starting 511xx
+- If customers pay on credit: 11200 Accounts Receivable group + 11201 sub_ledger. If suppliers on credit: 21100 Accounts Payable + 21101 sub_ledger under 21000 Current Liabilities group.
+- Profile type "${answers.profileType}" should shape the income/expense accounts (e.g. restaurant → Food Cost/Beverage Cost; construction → Materials/Subcontractors).`;
+
+    const raw = await askZaiOrGeminiJson(system, user);
+    if (!raw) return null;
+    const parsed = validateCoaJson(raw);
+    return parsed;
+  },
 };
 
 // ---------- Z.ai (OpenAI-compatible) ----------
@@ -207,6 +246,93 @@ function mapError(error: any): string {
   return `AI_riane encountered an error: ${m.substring(0, 180)}`;
 }
 
+// ---------- Structured JSON generation (COA onboarding) ----------
+
+/** Try z.ai first, then Gemini; returns the raw text or null when unavailable. */
+async function askZaiOrGeminiJson(system: string, user: string): Promise<string | null> {
+  const zaiKey = getZaiKey();
+  if (zaiKey) {
+    try {
+      return await askZai(zaiKey, ZAI_CHAT_MODEL, [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ], 0.2);
+    } catch (error: any) {
+      console.warn('COA generation: z.ai failed:', error?.message);
+    }
+  }
+  const geminiKey = getGeminiKey();
+  if (!geminiKey) return null;
+  try {
+    return await askGemini(geminiKey, `${system}\n\n${user}`);
+  } catch (error: any) {
+    console.warn('COA generation: Gemini failed:', error?.message);
+    return null;
+  }
+}
+
+function parseJsonLoose(raw: string): any {
+  const cleaned = raw.replace(/```json|```/g, '').trim();
+  const start = cleaned.indexOf('[') >= 0 ? cleaned.indexOf('[') : cleaned.indexOf('{');
+  const end = Math.max(cleaned.lastIndexOf(']'), cleaned.lastIndexOf('}'));
+  if (start < 0 || end <= start) throw new Error('No JSON found in model output.');
+  return JSON.parse(cleaned.slice(start, end + 1));
+}
+
+const COA_CLASSES: AccountClass[] = ['Assets', 'Liabilities', 'Equity', 'Revenue', 'Expenses'];
+const COA_LEVELS: AccountLevel[] = ['class', 'group', 'gl', 'sub_ledger'];
+// Codes the engine depends on; every generated tree must contain them
+const REQUIRED_CODES = ['10000', '11000', '11100', '11110', '11900', '30000', '31000', '32000', '40000', '41000', '50000', '60000', '60900'];
+
+function validateCoaJson(raw: string): Account[] | null {
+  let list: any[];
+  try {
+    const parsed = parseJsonLoose(raw);
+    list = Array.isArray(parsed) ? parsed : parsed?.accounts;
+    if (!Array.isArray(list) || list.length < 10) return null;
+  } catch {
+    return null;
+  }
+
+  const genId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2, 12));
+  const accounts: Account[] = [];
+  const byCode = new Map<string, Account>();
+
+  for (const item of list) {
+    const code = String(item?.code || '').trim();
+    const name = String(item?.name || '').trim();
+    const cls = String(item?.class || '') as AccountClass;
+    const level = String(item?.level || '') as AccountLevel;
+    const normal = String(item?.normalBalance || '') as NormalBalance;
+    if (!code || !name || !COA_CLASSES.includes(cls) || !COA_LEVELS.includes(level)) return null;
+    if (normal !== 'debit' && normal !== 'credit') return null;
+    if (byCode.has(code)) return null;
+    const isPosting = item.isPosting === true && (level === 'gl' || level === 'sub_ledger');
+    const isSystem = item.isSystem === true || level === 'class' || level === 'group';
+    const description = String(item?.description || '').trim() || undefined;
+    const acc: Account = {
+      id: genId(), code, name, class: cls, level, normalBalance: normal,
+      isPosting, isSystem, description,
+    };
+    byCode.set(code, acc);
+    accounts.push(acc);
+  }
+
+  for (const req of REQUIRED_CODES) {
+    if (!byCode.has(req)) return null;
+  }
+  // Wire parents; an unknown parent reference fails validation
+  for (const acc of accounts) {
+    const rawParent = accounts.length ? (list.find((l: any) => l.code === acc.code)?.parentCode ?? null) : null;
+    if (rawParent) {
+      const parent = byCode.get(String(rawParent));
+      if (!parent || parent.id === acc.id) return null;
+      acc.parentId = parent.id;
+    }
+  }
+  return accounts;
+}
+
 // ---------- Precomputed financial summary ----------
 
 const num = (v: any) => (typeof v === 'number' ? v : Number(v) || 0);
@@ -298,6 +424,10 @@ function buildFinancialSummary(state: AppState): object {
     asOf: format(today, 'yyyy-MM-dd'),
     currency: state.businessProfile.baseCurrency || 'QAR',
     business: state.businessProfile.name,
+    accountCatalog: state.accounts
+      .filter(a => a.isPosting || a.level === 'group')
+      .slice(0, 60)
+      .map(a => ({ code: a.code, name: a.name, class: a.class, description: a.description || undefined })),
     cash: { total: Math.round(totalCash * 100) / 100, accounts: cash },
     balanceSheet: {
       assets: classTotal('Assets'),
