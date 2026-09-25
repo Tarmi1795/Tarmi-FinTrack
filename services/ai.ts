@@ -9,9 +9,14 @@ import { AppState } from '../types';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { buildAccountTree, calculateDirectBalance } from '../utils/accountHierarchy';
 
-const ZAI_BASE_URL = 'https://api.z.ai/api/paas/v4';
+const ZAI_ENDPOINTS = [
+  'https://api.z.ai/api/paas/v4',        // general API (pay-as-you-go balance)
+  'https://api.z.ai/api/coding/paas/v4', // GLM Coding Plan subscription
+];
 const ZAI_CHAT_MODEL = 'glm-4.6';
 const ZAI_VISION_MODEL = 'glm-4.5v';
+// Remembers which endpoint worked so later calls skip dead ones
+let zaiEndpointIndex = 0;
 
 const getZaiKey = (): string => {
   try {
@@ -94,19 +99,38 @@ export const aiService = {
 interface ChatMessage { role: 'system' | 'user' | 'assistant'; content: any; }
 
 async function askZai(key: string, model: string, messages: ChatMessage[], temperature: number): Promise<string> {
-  const res = await fetch(`${ZAI_BASE_URL}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, messages, temperature }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`z.ai ${res.status}: ${text.slice(0, 200)}`);
+  let lastError: Error | null = null;
+  // Start at the cached working endpoint; fall through the rest on auth/balance errors
+  for (let i = 0; i < ZAI_ENDPOINTS.length; i++) {
+    const idx = (zaiEndpointIndex + i) % ZAI_ENDPOINTS.length;
+    const baseUrl = ZAI_ENDPOINTS[idx];
+    try {
+      const res = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, messages, temperature }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        const err = new Error(`z.ai ${res.status}: ${text.slice(0, 200)}`);
+        // 401/403/insufficient-balance → this endpoint tier doesn't cover the key; try the next
+        if (res.status === 401 || res.status === 403 || text.includes('1113') || text.includes('balance')) {
+          lastError = err;
+          continue;
+        }
+        throw err;
+      }
+      const data = await res.json();
+      const content = data?.choices?.[0]?.message?.content;
+      if (content === undefined || content === null) throw new Error('Empty response from z.ai.');
+      zaiEndpointIndex = idx; // cache the working endpoint
+      return typeof content === 'string' ? content : JSON.stringify(content);
+    } catch (e: any) {
+      lastError = e;
+      if (!String(e?.message).includes('z.ai')) throw e; // network error, not endpoint-tier
+    }
   }
-  const data = await res.json();
-  const content = data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error('Empty response from z.ai.');
-  return typeof content === 'string' ? content : JSON.stringify(content);
+  throw lastError || new Error('All z.ai endpoints failed.');
 }
 
 async function askZaiVision(key: string, imageDataUrl: string, prompt: string): Promise<string> {
