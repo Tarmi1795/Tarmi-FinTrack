@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { adminService, MODULE_KEYS } from '../services/admin';
 import type { AdminUserProfile, AdminUserStats, UserSettingsRow } from '../services/admin';
 import { useAccess } from '../context/AccessContext';
@@ -53,27 +53,8 @@ const CenterSpinner: React.FC = () => (
   </div>
 );
 
-// Self-contained 403 card (mirrors components/RequireAdmin.tsx)
-const ForbiddenCard: React.FC = () => {
-  const navigate = useNavigate();
-  return (
-    <div className="min-h-[60vh] flex items-center justify-center px-4">
-      <div className="glass-card p-8 max-w-sm w-full text-center">
-        <div className="mx-auto w-14 h-14 rounded-2xl bg-red-500/10 flex items-center justify-center">
-          <ShieldAlert className="text-red-400" size={28} />
-        </div>
-        <h2 className="text-xl font-bold text-white mt-4">403 — Admins only</h2>
-        <p className="text-sm text-gray-500 mt-1.5">Your account does not have access to this area.</p>
-        <button
-          onClick={() => navigate('/')}
-          className="mt-6 w-full flex items-center justify-center gap-2 bg-gradient-to-r from-gold-500 to-amber-400 text-black font-bold px-4 py-2.5 rounded-xl hover:shadow-lg hover:shadow-gold-500/20 transition-all active:scale-95 text-sm"
-        >
-          <ArrowLeft size={16} /> Back to Dashboard
-        </button>
-      </div>
-    </div>
-  );
-};
+// Non-admins are silently redirected — the admin area stays invisible to them
+const ForbiddenCard: React.FC = () => <Navigate to="/" replace />;
 
 const RoleChip: React.FC<{ role: 'user' | 'admin' }> = ({ role }) => (
   role === 'admin' ? (
