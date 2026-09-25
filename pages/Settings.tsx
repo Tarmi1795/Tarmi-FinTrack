@@ -1033,7 +1033,7 @@ export const Settings: React.FC = () => {
           )}
       </Modal>
 
-      <Modal isOpen={showPlans} onClose={() => setShowPlans(false)} title="Pricing Plans">
+      <Modal isOpen={showPlans} onClose={() => setShowPlans(false)} title="Pricing Plans" wide>
           <PricingPlans currentTierId="solo" compact />
       </Modal>
     </div>

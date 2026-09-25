@@ -6,9 +6,11 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  /** Wide layout for content that needs desktop breathing room (e.g. pricing). */
+  wide?: boolean;
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, wide = false }) => {
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -29,7 +31,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative bg-gray-900 border-t sm:border border-gray-800 rounded-t-2xl sm:rounded-xl shadow-2xl w-full sm:max-w-lg overflow-hidden flex flex-col max-h-[88dvh] sm:max-h-[90vh] animate-slide-up"
+        className={`relative bg-gray-900 border-t sm:border border-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full overflow-hidden flex flex-col max-h-[88dvh] sm:max-h-[90vh] animate-slide-up ${wide ? 'sm:max-w-3xl' : 'sm:max-w-lg'}`}
       >
         <div className="sm:hidden pt-2.5 pb-1 flex justify-center shrink-0">
           <div className="w-10 h-1 rounded-full bg-gray-700" />

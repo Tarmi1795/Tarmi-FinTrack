@@ -5,6 +5,7 @@ import { Lock, ArrowRight, ShieldCheck, Mail, AlertTriangle, Download, Share, Pl
 import { useFinance } from '../context/FinanceContext';
 import { usePWA } from '../context/PWAContext';
 import { Modal } from '../components/ui/Modal';
+import { alertDialog } from '../components/ui/ConfirmDialog';
 import { PricingPlans } from '../components/PricingPlans';
 import { GoogleGenAI } from "@google/genai";
 import { Logo } from '../components/ui/Logo';
@@ -102,7 +103,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         } else {
             if (mode === 'login') onLogin();
             else {
-                alert("Sign up successful! Please check your email or login.");
+                alertDialog({ title: 'Account created', message: 'Welcome aboard! Check your email to confirm, then sign in to begin setup.' });
                 setMode('login');
             }
         }
@@ -135,6 +136,10 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   };
 
   // --- Animations ---
+  // Sign In: the familiar hanging card, entering quickly and calmly.
+  // Sign Up: no chains — the card rises to meet the user with a warm spring.
+  const isSignup = mode === 'signup';
+
   const hangingVariants: Variants = {
     initial: { rotateZ: 0 },
     animate: { 
@@ -156,19 +161,35 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
     }
   };
 
-  const cardEntrance: Variants = {
-    initial: { y: -300, opacity: 0 },
+  const cardEntranceLogin: Variants = {
+    initial: { y: -240, opacity: 0 },
     animate: { 
       y: 0, 
       opacity: 1,
-      transition: { 
-        type: "spring", 
-        stiffness: 80, 
-        damping: 12, 
-        delay: 0.2 
-      } 
+      transition: { type: "spring", stiffness: 120, damping: 20, delay: 0.15 }
     }
   };
+
+  const cardEntranceSignup: Variants = {
+    initial: { y: 90, opacity: 0, scale: 0.97 },
+    animate: { 
+      y: 0, 
+      opacity: 1,
+      scale: 1,
+      transition: { type: "spring", stiffness: 70, damping: 16, delay: 0.1 }
+    }
+  };
+
+  // Password strength meter (signup only): length + variety, 3 segments
+  const pwStrength = (() => {
+    if (!password) return 0;
+    let s = 0;
+    if (password.length >= 6) s++;
+    if (password.length >= 10) s++;
+    if (/[0-9]/.test(password) && /[^a-zA-Z0-9]/.test(password)) s++;
+    return s;
+  })();
+  const strengthLabel = ['Too short', 'Fair', 'Good', 'Strong'];
 
   return (
     <div className="min-h-[100dvh] bg-[#12100d] text-white flex flex-col md:flex-row overflow-hidden relative font-inter selection:bg-gold-500/30">
@@ -322,10 +343,45 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
         {/* --- RIGHT SIDE: AUTHENTICATION --- */}
         <div className="w-full md:w-[40%] relative bg-[#12100d] flex items-center justify-center p-4 sm:p-6 perspective-[1000px] overflow-hidden">
-            {/* Dark/Gold Gradient Mesh Background */}
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-gold-900/20 via-[#12100d] to-[#12100d]"></div>
-            
-            {/* The Hanging Mechanism */}
+            {/* Background: static mesh for Sign In, slow drifting aurora for Sign Up */}
+            <AnimatePresence mode="wait">
+            {isSignup ? (
+                <motion.div
+                    key="aurora"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.5 }}
+                    className="absolute inset-0"
+                >
+                    <motion.div
+                        className="absolute w-[420px] h-[420px] rounded-full bg-gold-500/10 blur-[110px]"
+                        style={{ top: '-8%', right: '-10%' }}
+                        animate={{ x: [0, -40, 0], y: [0, 50, 0] }}
+                        transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }}
+                    />
+                    <motion.div
+                        className="absolute w-[360px] h-[360px] rounded-full bg-qatar-maroon/20 blur-[120px]"
+                        style={{ bottom: '-6%', left: '-12%' }}
+                        animate={{ x: [0, 60, 0], y: [0, -40, 0] }}
+                        transition={{ duration: 26, repeat: Infinity, ease: 'easeInOut' }}
+                    />
+                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-[#12100d]/40 to-[#12100d]"></div>
+                </motion.div>
+            ) : (
+                <motion.div
+                    key="mesh"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.4 }}
+                    className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-gold-900/20 via-[#12100d] to-[#12100d]"
+                />
+            )}
+            </AnimatePresence>
+
+            {/* The Hanging Mechanism — Sign In only; Sign Up has no chains */}
+            {!isSignup && (
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[280px] sm:w-[380px] h-[110px] sm:h-[140px] flex justify-between px-8 z-20 pointer-events-none">
                 {/* Left Chain */}
                 <motion.div variants={chainVariants} initial="initial" animate="animate" className="w-[2px] bg-gradient-to-b from-[#222] via-gold-600 to-gold-300 relative shadow-lg origin-top">
@@ -337,16 +393,19 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                     <div className="absolute bottom-0 -left-[5px] w-3 h-3 rounded-full border-[2px] border-gold-400 bg-[#050505] shadow-[0_0_10px_#D4AF37]"></div>
                 </motion.div>
             </div>
+            )}
 
-            {/* The Swinging Card */}
+            {/* The Card — hanging and swinging for Sign In, rising for Sign Up */}
             <motion.div 
-                variants={hangingVariants}
-                initial="initial"
+                key={`shell-${mode}`}
+                variants={isSignup ? undefined : hangingVariants}
+                initial={false}
                 animate="animate"
-                className="origin-top relative z-10 w-full max-w-md pt-14 sm:pt-20" // pt to account for chain length
+                className={`origin-top relative z-10 w-full max-w-md ${isSignup ? 'pt-6 sm:pt-10' : 'pt-14 sm:pt-20'}`}
             >
                 <motion.div 
-                    variants={cardEntrance}
+                    key={`card-${mode}`}
+                    variants={isSignup ? cardEntranceSignup : cardEntranceLogin}
                     initial="initial"
                     animate="animate"
                     className="glass-panel rounded-[2rem] border border-white/10 bg-[#0A0A0A]/80 backdrop-blur-2xl shadow-[0_50px_100px_-20px_rgba(0,0,0,0.9)] relative overflow-hidden group"
@@ -378,13 +437,45 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                                 <div className="absolute -top-10 right-2 w-[1px] h-12 bg-gold-500/30 -z-10"></div>
                             </div>
                             
-                            <h2 className="text-2xl font-bold text-center text-white tracking-tight">
-                                {mode === 'login' ? 'Welcome Back.' : 'Join the Elite.'}
-                            </h2>
-                            <p className="text-[10px] text-gold-500/70 uppercase tracking-[0.2em] mt-2 font-semibold">
-                                {mode === 'login' ? 'Access your Vault' : 'Secure your Future'}
-                            </p>
+                            <AnimatePresence mode="wait">
+                                <motion.div
+                                    key={mode}
+                                    initial={{ opacity: 0, y: 8 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -8 }}
+                                    transition={{ duration: 0.22 }}
+                                >
+                                    <h2 className="text-2xl font-bold text-center text-white tracking-tight">
+                                        {isSignup ? 'Begin your ledger.' : 'Welcome Back.'}
+                                    </h2>
+                                    <p className="text-[10px] text-gold-500/70 uppercase tracking-[0.2em] mt-2 font-semibold">
+                                        {isSignup ? 'Your journey starts here' : 'Access your Vault'}
+                                    </p>
+                                </motion.div>
+                            </AnimatePresence>
                         </div>
+
+                        {/* Sign Up journey: what happens after the account exists */}
+                        {isSignup && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.25, duration: 0.3 }}
+                                className="mb-6 bg-gray-900/60 border border-gray-800 rounded-xl p-4 space-y-2.5"
+                            >
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-gold-400/80">What happens next</p>
+                                {[
+                                    'Create your account in seconds',
+                                    'Answer 6 quick questions about your money',
+                                    'AI_riane builds your chart of accounts',
+                                ].map((line, i) => (
+                                    <div key={i} className="flex items-center gap-2.5 text-xs text-gray-400">
+                                        <span className="w-5 h-5 rounded-full bg-gold-500/15 text-gold-400 font-bold text-[10px] flex items-center justify-center shrink-0">{i + 1}</span>
+                                        {line}
+                                    </div>
+                                ))}
+                            </motion.div>
+                        )}
 
                         {/* Error Message */}
                         {error && (
@@ -443,6 +534,23 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                                         required
                                     />
                                 </div>
+                                {isSignup && password && (
+                                    <div className="flex items-center gap-2 pt-1.5" aria-hidden="true">
+                                        <div className="flex gap-1 flex-1">
+                                            {[0, 1, 2].map(i => (
+                                                <div
+                                                    key={i}
+                                                    className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
+                                                        i < pwStrength
+                                                            ? pwStrength === 1 ? 'bg-red-500/70' : pwStrength === 2 ? 'bg-gold-500/80' : 'bg-emerald-500/80'
+                                                            : 'bg-gray-800'
+                                                    }`}
+                                                />
+                                            ))}
+                                        </div>
+                                        <span className="text-[10px] text-gray-600">{strengthLabel[pwStrength]}</span>
+                                    </div>
+                                )}
                                 {mode === 'login' && (
                                     <div className="flex justify-end pt-1">
                                         <button type="button" className="text-[10px] text-gray-600 hover:text-gold-500 transition-colors">Recover Access?</button>
@@ -458,8 +566,10 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                             >
                                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent translate-x-[-100%] group-hover:animate-shimmer" />
                                 <span className="relative flex items-center justify-center gap-2 text-sm uppercase tracking-wide">
-                                    {loading ? 'Authenticating...' : (mode === 'login' ? 'Sign In' : 'Create Account')}
-                                    {!loading && <ArrowRight size={16} />}
+                                    {loading
+                                        ? (isSignup ? 'Creating…' : 'Authenticating…')
+                                        : (isSignup ? 'Create my account' : 'Sign In')}
+                                    {!loading && (isSignup ? <Sparkles size={15} /> : <ArrowRight size={16} />)}
                                 </span>
                             </motion.button>
                         </form>
@@ -531,7 +641,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </div>
         </Modal>
 
-        <Modal isOpen={showPlans} onClose={() => setShowPlans(false)} title="Tarmi FinTrack Plans">
+        <Modal isOpen={showPlans} onClose={() => setShowPlans(false)} title="Tarmi FinTrack Plans" wide>
             <PricingPlans />
         </Modal>
 
