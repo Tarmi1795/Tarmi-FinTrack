@@ -4,6 +4,7 @@ import { useFinance } from '../context/FinanceContext';
 import { inventoryService } from '../services/inventory';
 import { InventoryItem, InventoryMovement, InventorySettings, Transaction, Account } from '../types';
 import { Modal } from '../components/ui/Modal';
+import { InventoryPOS } from '../components/InventoryPOS';
 import { SearchableSelect } from '../components/ui/SearchableSelect';
 import { confirmDialog, alertDialog } from '../components/ui/ConfirmDialog';
 import { SkeletonCard } from '../components/ui/Skeleton';
@@ -12,7 +13,7 @@ import { format, parseISO } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Package, Plus, RefreshCw, Trash2, Pencil, History, AlertTriangle, X, Check,
-  ArrowDownToLine, ArrowUpFromLine, Scale, Link2, Boxes, TrendingUp, ChevronDown, PackageOpen
+  ArrowDownToLine, ArrowUpFromLine, Scale, Link2, Boxes, TrendingUp, ChevronDown, PackageOpen, ShoppingCart
 } from 'lucide-react';
 
 const todayStr = () => format(new Date(), 'yyyy-MM-dd');
@@ -59,6 +60,7 @@ export const Inventory: React.FC = () => {
   const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
   const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null);
   const [showSettingsCard, setShowSettingsCard] = useState(false);
+  const [showPOS, setShowPOS] = useState(false);
 
   // Item form
   const [fName, setFName] = useState('');
@@ -644,6 +646,14 @@ export const Inventory: React.FC = () => {
             <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
           </button>
           <button
+            onClick={() => setShowPOS(true)}
+            disabled={items.length === 0}
+            title="Quick POS entry"
+            className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 hover:bg-gray-800 border border-gold-500/40 text-gold-400 font-bold rounded-xl text-sm transition-all active:scale-95 disabled:opacity-40"
+          >
+            <ShoppingCart size={16} /> POS
+          </button>
+          <button
             onClick={() => openItemForm(null)}
             className="flex items-center gap-2 bg-gradient-to-r from-gold-500 to-amber-400 text-black font-bold px-4 py-2.5 rounded-xl hover:shadow-lg hover:shadow-gold-500/20 transition-all active:scale-95 text-sm"
           >
@@ -815,6 +825,15 @@ export const Inventory: React.FC = () => {
       </div>
 
       {/* ============ Modals ============ */}
+
+      {/* POS quick entry */}
+      <InventoryPOS
+        open={showPOS}
+        onClose={() => setShowPOS(false)}
+        items={items}
+        settings={settings}
+        onDone={loadAll}
+      />
 
       {/* Item form */}
       <Modal isOpen={showItemForm} onClose={() => setShowItemForm(false)} title={editItem ? 'Edit Item' : 'New Inventory Item'}>
