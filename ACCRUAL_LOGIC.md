@@ -56,7 +56,7 @@ The recurring system is an **Automated Scheduler** that runs locally within the 
 
 ## 4. Technical Implementation Reference
 
-*   **Logic Container**: `src/context/FinanceContext.tsx`
-*   **AR/AP Processing**: `src/pages/ApAr.tsx`
+*   **Logic Container**: `context/FinanceContext.tsx`
+*   **AR/AP Processing**: `pages/ApAr.tsx`
 *   **Automation Loop**: `useEffect` hook (Line 438+ in `FinanceContext.tsx`)
-*   **Database Mapping**: `src/services/supabase.ts`
+*   **Database Mapping**: `services/supabase.ts`

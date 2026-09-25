@@ -5,6 +5,8 @@ import { inventoryService } from '../services/inventory';
 import { InventoryItem, InventoryMovement, InventorySettings, Transaction, Account } from '../types';
 import { Modal } from '../components/ui/Modal';
 import { SearchableSelect } from '../components/ui/SearchableSelect';
+import { confirmDialog, alertDialog } from '../components/ui/ConfirmDialog';
+import { SkeletonCard } from '../components/ui/Skeleton';
 import { evaluateMathExpression } from '../utils/mathUtils';
 import { format, parseISO } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -258,12 +260,14 @@ export const Inventory: React.FC = () => {
     if (!user) return;
     const linked = movements.filter((m) => m.item_id === item.id);
     const glCount = linked.reduce((s, m) => s + (m.gl_transaction_ids?.length || 0), 0);
-    if (!window.confirm(
-      `Delete "${item.name}"?`
-      + ` Its ${linked.length} movement record${linked.length === 1 ? '' : 's'} will be removed.`
-      + (glCount ? ` The ${glCount} linked journal entr${glCount === 1 ? 'y' : 'ies'} in the main ledger will also be deleted.`
-        : ' No journal entries are linked.')
-    )) return;
+    if (!(await confirmDialog({
+      title: `Delete "${item.name}"?`,
+      message: `Its ${linked.length} movement record${linked.length === 1 ? '' : 's'} will be removed.`
+        + (glCount ? ` The ${glCount} linked journal entr${glCount === 1 ? 'y' : 'ies'} in the main ledger will also be deleted.`
+          : ' No journal entries are linked.'),
+      danger: true,
+      confirmLabel: 'Delete',
+    }))) return;
     setIsSaving(true);
     try {
       linked.forEach((m) => (m.gl_transaction_ids || []).forEach((txId) => dispatch({ type: 'DELETE_TRANSACTION', payload: txId })));
@@ -436,11 +440,13 @@ export const Inventory: React.FC = () => {
   const handleDeleteMovement = async (m: InventoryMovement) => {
     if (!user) return;
     const glCount = m.gl_transaction_ids?.length || 0;
-    if (!window.confirm(
-      'Delete this movement?'
-      + (glCount ? ` The ${glCount} linked journal entr${glCount === 1 ? 'y' : 'ies'} will also be deleted, and stock quantity restored.`
-        : ' The stock quantity will be restored.')
-    )) return;
+    if (!(await confirmDialog({
+      title: 'Delete this movement?',
+      message: glCount ? `The ${glCount} linked journal entr${glCount === 1 ? 'y' : 'ies'} will also be deleted, and stock quantity restored.`
+        : 'The stock quantity will be restored.',
+      danger: true,
+      confirmLabel: 'Delete',
+    }))) return;
     setIsSaving(true);
     try {
       const item = items.find((i) => i.id === m.item_id);
@@ -774,7 +780,7 @@ export const Inventory: React.FC = () => {
         </div>
 
         {isLoading ? (
-          <div className="p-10 text-center text-gray-500 animate-pulse font-bold tracking-widest text-sm">LOADING INVENTORY...</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4">{Array.from({length:4}).map((_,i)=>(<SkeletonCard key={i} />))}</div>
         ) : items.length === 0 ? (
           <div className="p-10 text-center">
             <Package size={40} className="mx-auto text-gray-700 mb-3" />

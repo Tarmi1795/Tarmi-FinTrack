@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, Send, X, User } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { useFinance } from '../context/FinanceContext';
 import { aiService } from '../services/ai';
 
@@ -28,6 +28,7 @@ interface Message {
 
 export const AIChat: React.FC = () => {
   const { state } = useFinance();
+  const dragControls = useDragControls();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<Message[]>([
@@ -128,16 +129,20 @@ export const AIChat: React.FC = () => {
       {/* Chat Window */}
       <AnimatePresence>
         {isOpen && (
-          <motion.div 
+          <motion.div
             drag
-            dragHandleSelector=".chat-header"
+            dragControls={dragControls}
+            dragListener={false}
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             className="fixed bottom-4 right-4 md:bottom-8 md:right-8 w-[90vw] md:w-[400px] h-[460px] max-h-[70dvh] md:h-[500px] md:max-h-[80vh] bg-gray-950 border border-gold-500/20 rounded-2xl shadow-2xl flex flex-col z-[10000] backdrop-blur-xl overflow-hidden chat-safe-layout"
           >
             {/* Header */}
-            <div className="chat-header flex items-center justify-between p-4 border-b border-gray-800 bg-gray-900/50 cursor-move">
+            <div
+              className="chat-header flex items-center justify-between p-4 border-b border-gray-800 bg-gray-900/50 cursor-move"
+              onPointerDown={(e) => dragControls.start(e)}
+            >
               <div className="flex items-center gap-2 pointer-events-none">
                 <div className="p-2 bg-gold-500/10 rounded-lg">
                   <AiRianeIcon size={20} className="text-gold-500" />

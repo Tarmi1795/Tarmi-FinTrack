@@ -7,6 +7,7 @@ import { SUPABASE_URL, SUPABASE_KEY, DEFAULT_ACCOUNTS, SEED_PARTIES, SEED_TRANSA
 import { addMonths, addWeeks, addYears, addDays, isPast, parseISO, isBefore, format } from 'date-fns';
 import { User } from '@supabase/supabase-js';
 import { calculateDirectBalance } from '../utils/accountHierarchy';
+import { alertDialog } from '../components/ui/ConfirmDialog';
 
 // MIGRATION HELPER
 const migrateState = (oldState: any): AppState => {
@@ -75,7 +76,8 @@ const initialState: AppState = rawState ? migrateState(rawState) : {
     businessProfile: { name: 'My Business', email: '', phone: '', address: '', baseCurrency: undefined }
 };
 
-const financeReducer = (state: AppState, action: Action): AppState => {
+// Exported for unit tests ( Vitest ) — pure state logic
+export const financeReducer = (state: AppState, action: Action): AppState => {
   let newState: AppState;
   const timestamp = new Date().toISOString();
   const withTime = (s: AppState) => ({ ...s, lastUpdated: timestamp });
@@ -358,7 +360,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [authLoading, setAuthLoading] = useState(true);
   
   const isRemoteUpdate = useRef(false);
-  const isPullingRef = useRef(false); 
+  const isPullingRef = useRef(false);
+  const userRef = useRef(user);
+  useEffect(() => { userRef.current = user; }, [user]);
+  const syncStatusRef = useRef(syncStatus);
+  useEffect(() => { syncStatusRef.current = syncStatus; }, [syncStatus]);
+  const retryAttemptRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let timeout: ReturnType<typeof setTimeout>;
@@ -445,9 +453,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, [syncConfig, performPull]); 
 
-  // Check online status
+  // Check online status — reconnecting must flush edits made while offline
   useEffect(() => {
-    const handleOnline = () => { if(user) setSyncStatus('synced'); };
+    const handleOnline = () => {
+      if (userRef.current) {
+        setSyncStatus('synced');
+        pushNowRef.current();
+      }
+    };
     const handleOffline = () => setSyncStatus('offline');
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -455,7 +468,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         window.removeEventListener('online', handleOnline);
         window.removeEventListener('offline', handleOffline);
     };
-  }, [user]);
+  }, []);
 
   // Automated Checks (Recurring & Depreciation)
   useEffect(() => {
@@ -652,36 +665,46 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   }, [state.accounts, state.assets, state.recurring, state.transactions.length]);
 
-  // Push on state change
-  useEffect(() => {
-    if (syncStatus === 'offline' || !navigator.onLine || !user) return;
-    if (syncStatus === 'syncing') return; 
-    
+  // Push on state change (3s debounce). Failures retry with exponential backoff,
+  // and reconnecting after being offline force-flushes pending edits.
+  const pushNow = useCallback(async () => {
+    const currentUser = userRef.current;
+    if (!currentUser || !navigator.onLine || isPullingRef.current) return;
     if (isRemoteUpdate.current) { isRemoteUpdate.current = false; return; }
-    if (syncStatus === 'error') return; 
+    setSyncStatus('syncing');
+    setLastError(undefined);
+    const { error } = await supabaseService.pushData(currentUser.id, stateRef.current);
+    if (error) {
+      setLastError(String(error));
+      setSyncStatus('error');
+      retryAttemptRef.current = Math.min(retryAttemptRef.current + 1, 5);
+      const delay = Math.min(5000 * Math.pow(2, retryAttemptRef.current - 1), 60000);
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = setTimeout(() => pushNowRef.current(), delay);
+    } else {
+      retryAttemptRef.current = 0;
+      setSyncStatus('synced');
+    }
+  }, []);
+  const pushNowRef = useRef(pushNow);
+  useEffect(() => { pushNowRef.current = pushNow; }, [pushNow]);
 
-    const push = async () => {
-      if (isPullingRef.current) return; 
-      setSyncStatus('syncing');
-      setLastError(undefined);
-      const { error } = await supabaseService.pushData(user.id, state);
-      if (error) {
-        setLastError(String(error));
-        setSyncStatus('error');
-      } else {
-        setSyncStatus('synced');
-      }
-    };
-    const timeout = setTimeout(push, 3000); 
+  useEffect(() => {
+    if (syncStatusRef.current === 'offline' || !navigator.onLine || !user) return;
+    if (syncStatusRef.current === 'syncing' || syncStatusRef.current === 'error') return;
+
+    if (isRemoteUpdate.current) { isRemoteUpdate.current = false; return; }
+
+    const timeout = setTimeout(() => pushNowRef.current(), 3000);
     return () => clearTimeout(timeout);
-  }, [state]); 
+  }, [state, user]);
 
   const pushDataManual = async () => {
       if(!user) return;
       setSyncStatus('syncing');
       const { error } = await supabaseService.pushData(user.id, state);
-      if (error) { setSyncStatus('error'); alert("Upload Failed: " + (error.message || error)); } 
-      else { setSyncStatus('synced'); alert("Upload Successful!"); }
+      if (error) { setSyncStatus('error'); alertDialog({ title: 'Upload failed', message: String(error.message || error) }); }
+      else { setSyncStatus('synced'); alertDialog({ title: 'Upload successful', message: 'All local data has been pushed to the cloud.' }); }
   }
 
   const updateSyncConfig = (cfg: SyncConfig) => {

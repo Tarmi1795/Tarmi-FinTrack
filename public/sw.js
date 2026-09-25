@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'tarmi-fintrack-v3';
+const CACHE_NAME = 'tarmi-fintrack-__BUILD_ID__';
 
 // Assets to strictly pre-cache on install
 const PRECACHE_URLS = [
@@ -57,20 +57,19 @@ self.addEventListener('fetch', (event) => {
   }
 
   // 2. API / Supabase Requests - Network Only (Do not cache)
-  if (url.hostname.includes('supabase.co')) {
-    return; 
+  if (url.hostname.includes('supabase.co') || url.hostname.includes('z.ai') || url.hostname.includes('zhihu.com')) {
+    return;
   }
 
   // 3. Static Assets (JS, CSS, Images, Fonts) - Cache First
   // Serves from cache if available. If not, fetches from network and caches it.
-  // Crucial: Allows caching of opaque responses (CDNs like Tailwind) for offline support.
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
         return cachedResponse;
       }
       return fetch(event.request).then((response) => {
-        // Cache valid responses. 
+        // Cache valid responses.
         // We accept status 200 (OK) AND type 'opaque' (status 0) which is common for CDN scripts.
         if (!response || (response.status !== 200 && response.type !== 'opaque')) {
           return response;

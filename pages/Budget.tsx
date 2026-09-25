@@ -5,6 +5,7 @@ import { format, startOfMonth, endOfMonth, parseISO, isWithinInterval, startOfYe
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { ChevronLeft, ChevronRight, Settings, Target, CheckSquare, Square, Copy, Calendar, Lock } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
+import { confirmDialog, alertDialog } from '../components/ui/ConfirmDialog';
 import { MonthlyBudget } from '../types';
 
 export const Budget: React.FC = () => {
@@ -145,13 +146,13 @@ export const Budget: React.FC = () => {
       setSelectedDate(newDate);
   };
 
-  const handleCopyBudget = (e: React.FormEvent) => {
+  const handleCopyBudget = async (e: React.FormEvent) => {
       e.preventDefault();
       // Ensure we are copying from a concrete monthly record
       if (!existingBudget || viewMode === 'yearly') return;
-      
+
       if (!copyTargetValue) {
-          alert("Please select a target.");
+          await alertDialog({ title: 'Please select a target.' });
           return;
       }
 
@@ -164,7 +165,7 @@ export const Budget: React.FC = () => {
           // Input type="number" returns YYYY
           const year = parseInt(copyTargetValue);
           if (isNaN(year) || year < 2000 || year > 2100) {
-              alert("Invalid year.");
+              await alertDialog({ title: 'Invalid year.' });
               return;
           }
           for (let i = 1; i <= 12; i++) {
@@ -186,7 +187,7 @@ export const Budget: React.FC = () => {
           });
       });
 
-      alert(`Budget copied to ${targets.length} month(s).`);
+      await alertDialog({ title: `Budget copied to ${targets.length} month(s).` });
       setIsCopyModalOpen(false);
       setCopyTargetValue('');
   };

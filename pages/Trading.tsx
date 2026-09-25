@@ -6,6 +6,8 @@ import { TradingAccount, TradingCashflow, TradingSnapshot, TradingFxRate, Tradin
 import { CURRENCIES } from '../constants';
 import { Modal } from '../components/ui/Modal';
 import { SearchableSelect } from '../components/ui/SearchableSelect';
+import { confirmDialog, alertDialog } from '../components/ui/ConfirmDialog';
+import { SkeletonCard } from '../components/ui/Skeleton';
 import { calculateDirectBalance } from '../utils/accountHierarchy';
 import { evaluateMathExpression } from '../utils/mathUtils';
 import { format, parseISO } from 'date-fns';
@@ -188,13 +190,16 @@ export const Trading: React.FC = () => {
 
   const archivedRows: AccountRow[] = useMemo(() => archivedAccounts.map(computeRow), [archivedAccounts, computeRow]);
 
+  // Portfolio-wide figures include archived accounts so nothing disappears from the totals
+  const allRows: AccountRow[] = useMemo(() => accounts.map(computeRow), [accounts, computeRow]);
+
   const totals = useMemo(() => {
-    const capitalBase = rows.reduce((s, r) => s + r.capitalBase, 0);
-    const balanceBase = rows.reduce((s, r) => s + (r.balanceBase ?? r.capitalBase), 0);
+    const capitalBase = allRows.reduce((s, r) => s + r.capitalBase, 0);
+    const balanceBase = allRows.reduce((s, r) => s + (r.balanceBase ?? r.capitalBase), 0);
     const pnlBase = balanceBase - capitalBase;
     const roi = capitalBase !== 0 ? (pnlBase / capitalBase) * 100 : 0;
     return { capitalBase, balanceBase, pnlBase, roi };
-  }, [rows]);
+  }, [allRows]);
 
   // Filter + sort for the broker accounts list
   const visibleRows = useMemo(() => {
@@ -296,12 +301,12 @@ export const Trading: React.FC = () => {
   // Net invested capital in base currency at current rates (stored fx_rate is informational only)
   const netInvestedBase = useMemo(() => (
     cashflows.reduce((sum, f) => {
-      const acc = activeAccounts.find((a) => a.id === f.account_id);
-      if (!acc) return sum; // archived accounts leave the comparison
+      const acc = accounts.find((a) => a.id === f.account_id);
+      if (!acc) return sum;
       const rate = rateFor(acc.currency);
       return sum + (f.flow_type === 'deposit' ? f.amount : -f.amount) * rate;
     }, 0)
-  ), [cashflows, activeAccounts, rateFor]);
+  ), [cashflows, accounts, rateFor]);
 
   const glBalance = useMemo(
     () => (linkedGlAccountId ? calculateDirectBalance(linkedGlAccountId, state.transactions, 'debit') : 0),
@@ -340,7 +345,11 @@ export const Trading: React.FC = () => {
 
   const handleArchiveAccount = async (acc: TradingAccount) => {
     if (!user) return;
-    if (!window.confirm(`Archive "${acc.name}"? It will be hidden from the list, totals and transfers — all data is kept and you can restore it anytime.`)) return;
+    if (!(await confirmDialog({
+      title: `Archive "${acc.name}"?`,
+      message: 'It will be hidden from the list, totals and transfers — all data is kept and you can restore it anytime.',
+      confirmLabel: 'Archive',
+    }))) return;
     setIsSaving(true);
     try {
       await tradingService.updateAccount(user.id, acc.id, { is_active: false });
@@ -369,7 +378,12 @@ export const Trading: React.FC = () => {
 
   const handleDeleteAccount = async (acc: TradingAccount) => {
     if (!user) return;
-    if (!window.confirm(`Delete "${acc.name}"? Its deposits/withdrawals and snapshots will also be removed. (Nothing in the main ledger is affected.)`)) return;
+    if (!(await confirmDialog({
+      title: `Delete "${acc.name}"?`,
+      message: 'Its deposits/withdrawals and snapshots will also be removed. (Nothing in the main ledger is affected.)',
+      danger: true,
+      confirmLabel: 'Delete',
+    }))) return;
     setIsSaving(true);
     try {
       await tradingService.deleteAccount(user.id, acc.id);
@@ -455,9 +469,14 @@ export const Trading: React.FC = () => {
       ? cashflows.find((f) => f.id === flow.bank_account_id)
       : cashflows.find((f) => f.bank_account_id === flow.id);
     const isTransferLeg = !!sibling;
-    if (!window.confirm(isTransferLeg
-      ? 'Delete this transfer? Both legs (source and destination) will be removed and balances reverted.'
-      : 'Delete this entry? Its balance adjustment will also be reversed.')) return;
+    if (!(await confirmDialog({
+      title: isTransferLeg ? 'Delete this transfer?' : 'Delete this entry?',
+      message: isTransferLeg
+        ? 'Both legs (source and destination) will be removed and balances reverted.'
+        : 'Its balance adjustment will also be reversed.',
+      danger: true,
+      confirmLabel: 'Delete',
+    }))) return;
     setIsSaving(true);
     try {
       const legs = sibling ? [flow, sibling] : [flow];
@@ -641,11 +660,15 @@ export const Trading: React.FC = () => {
     if (!user) return;
     const childCount = categories.filter((c) => c.parent_id === cat.id).length;
     const accCount = accounts.filter((a) => a.category_id === cat.id).length;
-    if (!window.confirm(
-      `Delete category "${cat.name}"?`
-      + (childCount ? ` Its ${childCount} sub-category${childCount > 1 ? 's' : ''} will be deleted too.` : '')
-      + (accCount ? ` Its ${accCount} account${accCount > 1 ? 's' : ''} become standalone (they are NOT deleted).` : '')
-    )) return;
+    if (!(await confirmDialog({
+      title: `Delete category "${cat.name}"?`,
+      message: [
+        childCount ? `Its ${childCount} sub-category${childCount > 1 ? 's' : ''} will be deleted too.` : '',
+        accCount ? `Its ${accCount} account${accCount > 1 ? 's' : ''} become standalone (they are NOT deleted).` : '',
+      ].filter(Boolean).join(' '),
+      danger: true,
+      confirmLabel: 'Delete',
+    }))) return;
     setIsSaving(true);
     try {
       await tradingService.deleteCategory(user.id, cat.id);
@@ -937,12 +960,12 @@ export const Trading: React.FC = () => {
         <div className="glass-card p-3.5">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><Landmark size={12} /> Total Capital</div>
           <p className="font-mono text-base md:text-xl font-bold text-white mt-2 truncate">{fmt(totals.capitalBase)}</p>
-          <p className="text-[10px] text-gray-600 mt-0.5">{baseCurrency} • net deposits</p>
+          <p className="text-[10px] text-gray-600 mt-0.5">{baseCurrency} • net deposits{archivedAccounts.length > 0 ? ` • incl. ${archivedAccounts.length} archived` : ''}</p>
         </div>
         <div className="glass-card p-3.5">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><Wallet size={12} /> Balance Today</div>
           <p className="font-mono text-base md:text-xl font-bold text-gold-400 mt-2 truncate">{fmt(totals.balanceBase)}</p>
-          <p className="text-[10px] text-gray-600 mt-0.5">{baseCurrency} • latest snapshots</p>
+          <p className="text-[10px] text-gray-600 mt-0.5">{baseCurrency} • latest snapshots{archivedAccounts.length > 0 ? ' • incl. archived' : ''}</p>
         </div>
         <div className="glass-card p-3.5">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">
@@ -1067,7 +1090,7 @@ export const Trading: React.FC = () => {
         </div>
 
         {isLoading ? (
-          <div className="p-10 text-center text-gray-500 animate-pulse font-bold tracking-widest text-sm">LOADING PORTFOLIO...</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4">{Array.from({length:4}).map((_,i)=>(<SkeletonCard key={i} />))}</div>
         ) : accounts.length === 0 ? (
           <div className="p-10 text-center">
             <CandlestickChart size={40} className="mx-auto text-gray-700 mb-3" />

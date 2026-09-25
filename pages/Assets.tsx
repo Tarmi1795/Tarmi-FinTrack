@@ -6,6 +6,7 @@ import { Plus, Monitor, Trash2, CalendarClock, AlertCircle, Pencil } from 'lucid
 import { Modal } from '../components/ui/Modal';
 import { format, parseISO, addMonths, isBefore } from 'date-fns';
 import { SearchableSelect } from '../components/ui/SearchableSelect';
+import { confirmDialog, alertDialog } from '../components/ui/ConfirmDialog';
 import { evaluateMathExpression } from '../utils/mathUtils';
 import { calculateDirectBalance } from '../utils/accountHierarchy';
 
@@ -52,14 +53,14 @@ export const Assets: React.FC = () => {
       setIsModalOpen(true);
   }
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const finalCostStr = evaluateMathExpression(value);
     const inputVal = parseFloat(finalCostStr);
     const usefulLifeVal = parseFloat(life);
-    
+
     if (isNaN(inputVal) || isNaN(usefulLifeVal) || usefulLifeVal <= 0) {
-        alert("Invalid Cost or Useful Life");
+        await alertDialog({ title: 'Invalid Cost or Useful Life' });
         return;
     }
 
@@ -256,8 +257,13 @@ export const Assets: React.FC = () => {
     setName(''); setValue(''); setDate(new Date().toISOString().split('T')[0]); setNote(''); setLife(''); setPaymentAccountId('');
   };
 
-  const handleDelete = (asset: Asset) => {
-      if(confirm(`Delete Asset: ${asset.name}?\n\nWARNING: This will delete the Asset Record, the linked GL Accounts (Cost & Accum Dep), and ALL related ledger transactions (Acquisition & Depreciation).\n\nThis action cannot be undone.`)) {
+  const handleDelete = async (asset: Asset) => {
+      if (await confirmDialog({
+        title: `Delete Asset: ${asset.name}?`,
+        message: 'WARNING: This will delete the Asset Record, the linked GL Accounts (Cost & Accum Dep), and ALL related ledger transactions (Acquisition & Depreciation).\n\nThis action cannot be undone.',
+        danger: true,
+        confirmLabel: 'Delete',
+      })) {
           
           // 1. Identify Accounts
           const costAccountId = asset.linkedAccountId;

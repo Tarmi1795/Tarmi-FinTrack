@@ -4,6 +4,7 @@ import { useFinance } from '../context/FinanceContext';
 import { Trash2, Plus, LayoutGrid, Book, AlertTriangle, Users, Pencil, Check, X, Database, Search, FileJson, FileSpreadsheet, Building2, ChevronRight, ChevronDown, Folder, Repeat, Mail, Phone, MapPin, Tag, Star, Upload, FileText, Globe, ArrowRightLeft, RefreshCw } from 'lucide-react';
 import { Account, TransactionTemplate, AccountClass, Party, PartyType, AccountLevel, Transaction, AppState, CurrencyCode, RecurringTransaction, RecurrenceFrequency } from '../types';
 import { Modal } from '../components/ui/Modal';
+import { confirmDialog, alertDialog } from '../components/ui/ConfirmDialog';
 import { format, parseISO, addMonths, addWeeks, addYears, addDays, endOfDay } from 'date-fns';
 import { excelService } from '../services/excel';
 import { buildAccountTree, AccountNode } from '../utils/accountHierarchy';
@@ -120,30 +121,35 @@ export const Settings: React.FC = () => {
 
   // --- HANDLERS ---
 
-  const handleSaveProfile = (e: React.FormEvent) => { 
-      e.preventDefault(); 
-      dispatch({ type: 'UPDATE_BUSINESS_PROFILE', payload: { ...state.businessProfile, name: bizName, address: bizAddress, phone: bizPhone, email: bizEmail, footerNote: bizFooter } }); 
-      alert('Profile Saved'); 
+  const handleSaveProfile = async (e: React.FormEvent) => {
+      e.preventDefault();
+      dispatch({ type: 'UPDATE_BUSINESS_PROFILE', payload: { ...state.businessProfile, name: bizName, address: bizAddress, phone: bizPhone, email: bizEmail, footerNote: bizFooter } });
+      await alertDialog({ title: 'Profile Saved' });
   };
 
-  const handleMigration = (e: React.FormEvent) => {
+  const handleMigration = async (e: React.FormEvent) => {
     e.preventDefault();
     if (migrationConfirm !== 'CONFIRM') {
-        alert("Please type CONFIRM to execute migration.");
+        await alertDialog({ title: 'Please type CONFIRM to execute migration.' });
         return;
     }
     const rate = parseFloat(migrationRate);
     if (!migrationTarget || isNaN(rate) || rate <= 0) {
-        alert("Invalid target currency or rate.");
+        await alertDialog({ title: 'Invalid target currency or rate.' });
         return;
     }
 
-    if (confirm(`WARNING: This will permanently multiply ALL historical amounts by ${rate} and change base currency to ${migrationTarget}. This cannot be undone. Proceed?`)) {
-        dispatch({ 
-            type: 'MIGRATE_BASE_CURRENCY', 
-            payload: { newCurrency: migrationTarget, rate: rate } 
+    if (await confirmDialog({
+      title: `WARNING: This will permanently multiply ALL historical amounts by ${rate} and change base currency to ${migrationTarget}.`,
+      message: 'This cannot be undone. Proceed?',
+      danger: true,
+      confirmLabel: 'Proceed',
+    })) {
+        dispatch({
+            type: 'MIGRATE_BASE_CURRENCY',
+            payload: { newCurrency: migrationTarget, rate: rate }
         });
-        alert("Migration Complete. The dashboard will now reflect the new currency.");
+        await alertDialog({ title: 'Migration Complete.', message: 'The dashboard will now reflect the new currency.' });
         setMigrationTarget('');
         setMigrationRate('');
         setMigrationConfirm('');
@@ -186,7 +192,7 @@ export const Settings: React.FC = () => {
       setPartyType('vendor');
   };
 
-  const handleAddParty = (e: React.FormEvent) => {
+  const handleAddParty = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!partyName) return;
 
@@ -207,20 +213,20 @@ export const Settings: React.FC = () => {
             email: partyEmail
         };
         dispatch({ type: 'UPDATE_PARTY', payload: updatedParty });
-        
+
         // Reset form
         cancelEditParty();
-        alert("Party updated successfully. Linked accounts and records have been synced.");
+        await alertDialog({ title: 'Party updated successfully.', message: 'Linked accounts and records have been synced.' });
         return;
     }
 
-    let targetParentCode = '11900'; 
+    let targetParentCode = '11900';
     let targetClass: AccountClass = 'Assets';
     let targetNormalBalance: 'debit' | 'credit' = 'debit';
     const parentAccount = state.accounts.find(a => a.code === targetParentCode);
-    
+
     if (!parentAccount) {
-        alert(`System Error: Parent GL Account ${targetParentCode} (Parties) not found.`);
+        await alertDialog({ title: `System Error: Parent GL Account ${targetParentCode} (Parties) not found.` });
         return;
     }
 
@@ -251,7 +257,7 @@ export const Settings: React.FC = () => {
     dispatch({ type: 'ADD_PARTY', payload: newParty });
 
     setPartyName(''); setPartyPhone(''); setPartyEmail('');
-    alert(`Party created.`);
+    await alertDialog({ title: 'Party created.' });
   };
 
   const handleSaveTemplate = (template: TransactionTemplate) => {
@@ -297,9 +303,11 @@ export const Settings: React.FC = () => {
       setIsRecurringModalOpen(true);
   };
 
-  const handleManualTrigger = (rule: RecurringTransaction) => {
-      const confirmMsg = `Manually trigger this ${rule.generationType || 'transaction'} now?\n\nThis will generate the next installment immediately and move the rule's next due date forward.`;
-      if (!confirm(confirmMsg)) return;
+  const handleManualTrigger = async (rule: RecurringTransaction) => {
+      if (!(await confirmDialog({
+        title: `Manually trigger this ${rule.generationType || 'transaction'} now?`,
+        message: `This will generate the next installment immediately and move the rule's next due date forward.`,
+      }))) return;
 
       const dateStr = rule.nextDueDate.split('T')[0];
       const baseDate = new Date(dateStr + 'T00:00:00.000Z');
@@ -391,10 +399,10 @@ export const Settings: React.FC = () => {
       });
   };
 
-  const handleSaveRecurring = (e: React.FormEvent) => {
+  const handleSaveRecurring = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!editingRecurring) return;
-      if (!recDebitAcc) { alert("Please select a Debit account."); return; }
+      if (!recDebitAcc) { await alertDialog({ title: 'Please select a Debit account.' }); return; }
       
       const ruleToSave: RecurringTransaction = {
           ...editingRecurring,
@@ -421,13 +429,18 @@ export const Settings: React.FC = () => {
       setEditingRecurring(null);
   };
 
-  const handleDelete = (type: string, id: string) => { 
-      if (confirm('Are you sure? This action cannot be undone.')) { 
-          if(type === 'ACCOUNT') dispatch({ type: 'DELETE_ACCOUNT', payload: id }); 
-          if(type === 'TEMPLATE') dispatch({ type: 'DELETE_TEMPLATE', payload: id }); 
-          if(type === 'PARTY') dispatch({ type: 'DELETE_PARTY', payload: id }); 
-          if(type === 'RECURRING') dispatch({ type: 'DELETE_RECURRING', payload: id }); 
-      } 
+  const handleDelete = async (type: string, id: string) => {
+      if (await confirmDialog({
+        title: 'Are you sure?',
+        message: 'This action cannot be undone.',
+        danger: true,
+        confirmLabel: 'Delete',
+      })) {
+          if(type === 'ACCOUNT') dispatch({ type: 'DELETE_ACCOUNT', payload: id });
+          if(type === 'TEMPLATE') dispatch({ type: 'DELETE_TEMPLATE', payload: id });
+          if(type === 'PARTY') dispatch({ type: 'DELETE_PARTY', payload: id });
+          if(type === 'RECURRING') dispatch({ type: 'DELETE_RECURRING', payload: id });
+      }
   };
 
   const goToSOA = (accountId: string) => {
@@ -436,12 +449,12 @@ export const Settings: React.FC = () => {
 
   const handleBackup = () => { const dataStr = JSON.stringify(state, null, 2); const link = document.createElement('a'); link.href = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr); link.download = `backup_${format(new Date(), 'yyyy-MM-dd')}.json`; link.click(); };
   const handleExcelExport = () => excelService.exportDataToExcel(state);
-  const handleRestore = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if(!file)return; const reader=new FileReader(); reader.onload=async(ev)=>{ try{ const json=JSON.parse(ev.target?.result as string); if(confirm("Restore?")) dispatch({type:'SET_STATE', payload:json}); }catch(err){alert("Invalid JSON");}}; reader.readAsText(file); };
-  const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if(!file)return; if(confirm("Overwrite data?")) { try{ const data=await excelService.importDataFromExcel(file); if(data.transactions) dispatch({type:'SET_STATE', payload:{...state, ...data}}); alert("Imported"); }catch(e){alert("Error");}} };
+  const handleRestore = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if(!file)return; const reader=new FileReader(); reader.onload=async(ev)=>{ try{ const json=JSON.parse(ev.target?.result as string); if (await confirmDialog({ title: 'Restore?', danger: true, confirmLabel: 'Restore' })) dispatch({type:'SET_STATE', payload:json}); }catch(err){ await alertDialog({ title: 'Invalid JSON' }); }}; reader.readAsText(file); };
+  const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if(!file)return; if (await confirmDialog({ title: 'Overwrite data?', danger: true, confirmLabel: 'Overwrite' })) { try{ const data=await excelService.importDataFromExcel(file); if(data.transactions) dispatch({type:'SET_STATE', payload:{...state, ...data}}); await alertDialog({ title: 'Imported' }); }catch(e){ await alertDialog({ title: 'Error' }); } } };
   const startEditingAcc = (acc: Account) => { setEditingAccId(acc.id); setEditingAccName(acc.name); };
   const saveEditingAcc = () => { if(editingAccId) { const orig = state.accounts.find(c => c.id === editingAccId); if(orig) dispatch({ type: 'UPDATE_ACCOUNT', payload: { ...orig, name: editingAccName } }); setEditingAccId(null); } };
   const cancelEditingAcc = () => { setEditingAccId(null); };
-  const handleReset = () => { if(confirm('RESET DATA? ALL TRANSACTIONS WILL BE LOST.')) dispatch({ type: 'RESET_DATA' }); };
+  const handleReset = async () => { if (await confirmDialog({ title: 'RESET DATA?', message: 'ALL TRANSACTIONS WILL BE LOST.', danger: true, confirmLabel: 'Reset' })) dispatch({ type: 'RESET_DATA' }); };
 
   const getBalanceColor = (node: AccountNode) => {
     const bal = node.totalBalance;
