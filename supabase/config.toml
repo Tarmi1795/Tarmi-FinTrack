@@ -1,0 +1,4 @@
+project_id = "tarmi-fintrack"
+
+[functions.admin-invite]
+verify_jwt = true

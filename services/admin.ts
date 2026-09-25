@@ -61,14 +61,34 @@ export const adminService = {
     return (data?.role as 'user' | 'admin') || 'user';
   },
 
-  /** All user profiles (admin only — RLS enforces) */
+  /** All user profiles via SECURITY DEFINER RPC (robust, admin-only) */
   async listUsers(): Promise<AdminUserProfile[]> {
-    const { data, error } = await supabase
-      .from('fintrack_profiles')
-      .select('id, email, name, role, base_currency')
-      .order('email');
+    const { data, error } = await supabase.rpc('admin_list_users');
     if (error) throw error;
-    return (data || []) as AdminUserProfile[];
+    return (data || []) as unknown as AdminUserProfile[];
+  },
+
+  /** Promote / demote a user (admin UPDATE policy on fintrack_profiles) */
+  async updateUserRole(userId: string, role: 'user' | 'admin'): Promise<void> {
+    const { error } = await supabase
+      .from('fintrack_profiles')
+      .update({ role, updated_at: new Date().toISOString() })
+      .eq('id', userId);
+    if (error) throw error;
+  },
+
+  /** Permanently delete a user's auth account and all of their data (definer RPC; self blocked) */
+  async deleteUser(userId: string): Promise<void> {
+    const { error } = await supabase.rpc('admin_delete_user', { target: userId });
+    if (error) throw error;
+  },
+
+  /** Create a new user account via the admin-invite Edge Function */
+  async createUser(email: string, password: string, name?: string): Promise<void> {
+    const { error } = await supabase.functions.invoke('admin-invite', {
+      body: { email: email.trim().toLowerCase(), password, name: name?.trim() || undefined },
+    });
+    if (error) throw error;
   },
 
   /**

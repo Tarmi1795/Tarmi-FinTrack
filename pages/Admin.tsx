@@ -3,14 +3,15 @@ import { Navigate } from 'react-router-dom';
 import { adminService, MODULE_KEYS } from '../services/admin';
 import type { AdminUserProfile, AdminUserStats, UserSettingsRow } from '../services/admin';
 import { useAccess } from '../context/AccessContext';
+import { useFinance } from '../context/FinanceContext';
+import { confirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { SkeletonCard } from '../components/ui/Skeleton';
 import { format, parseISO, isAfter, subDays } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Shield, ShieldAlert, RefreshCw, AlertTriangle, X, Users, UserCheck, Zap, Database,
-  Lock, ArrowLeft, Save, Settings2, Info
-} from 'lucide-react';
+  Lock, ArrowLeft, Save, Settings2, Info, UserPlus} from 'lucide-react';
 
 // Modules that can never be disabled (not part of MODULE_KEYS — core navigation)
 const FIXED_MODULES = [
@@ -66,6 +67,7 @@ const RoleChip: React.FC<{ role: 'user' | 'admin' }> = ({ role }) => (
 
 export const Admin: React.FC = () => {
   const { role, loading: accessLoading } = useAccess();
+  const { user } = useFinance();
 
   const [rows, setRows] = useState<AdminRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -77,6 +79,12 @@ export const Admin: React.FC = () => {
   const [draftDisabled, setDraftDisabled] = useState<string[]>([]);
   const [draftLimit, setDraftLimit] = useState<string>('50');
   const [isSaving, setIsSaving] = useState(false);
+
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newName, setNewName] = useState('');
+  const [isWorking, setIsWorking] = useState(false);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -152,6 +160,79 @@ export const Admin: React.FC = () => {
     }
   };
 
+  const toggleRole = async () => {
+    if (!manageUser) return;
+    if (manageUser.id === user?.id) { showToast('You cannot change your own role.'); return; }
+    const promote = manageUser.role !== 'admin';
+    const ok = await confirmDialog({
+      title: promote ? `Make ${manageUser.email} an admin?` : `Revoke admin from ${manageUser.email}?`,
+      message: promote
+        ? 'Admins can manage users, module restrictions and AI limits.'
+        : 'The account will drop back to a standard user.',
+      confirmLabel: promote ? 'Make admin' : 'Revoke admin',
+    });
+    if (!ok) return;
+    setIsSaving(true);
+    try {
+      await adminService.updateUserRole(manageUser.id, promote ? 'admin' : 'user');
+      showToast(promote ? 'Admin granted.' : 'Admin revoked.');
+      await load();
+      setManageUser(null);
+    } catch (e: any) {
+      setLoadError(e?.message || 'Failed to update role.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!manageUser) return;
+    if (manageUser.id === user?.id) { showToast('You cannot delete your own account.'); return; }
+    const ok = await confirmDialog({
+      title: `Delete ${manageUser.email} permanently?`,
+      message: 'The login account and ALL of its data — ledger, trading, inventory, invoices, receipts — will be permanently deleted. This cannot be undone.',
+      confirmLabel: 'Delete everything',
+      danger: true,
+    });
+    if (!ok) return;
+    setIsSaving(true);
+    try {
+      await adminService.deleteUser(manageUser.id);
+      showToast('User deleted.');
+      await load();
+      setManageUser(null);
+    } catch (e: any) {
+      setLoadError(e?.message || 'Failed to delete user.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const generatePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
+    let pw = '';
+    const arr = new Uint32Array(12);
+    crypto.getRandomValues(arr);
+    for (let i = 0; i < 12; i++) pw += chars[arr[i] % chars.length];
+    setNewPassword(pw);
+  };
+
+  const handleCreateUser = async () => {
+    if (!newEmail.trim() || !newPassword) return;
+    setIsWorking(true);
+    try {
+      await adminService.createUser(newEmail, newPassword, newName);
+      setShowAddUser(false);
+      setNewEmail(''); setNewPassword(''); setNewName('');
+      showToast('User created.');
+      await load();
+    } catch (e: any) {
+      setLoadError(e?.message || 'Failed to create user.');
+    } finally {
+      setIsWorking(false);
+    }
+  };
+
   // --- Guard (belt — RequireAdmin is the suspenders) ---
   if (accessLoading) return <CenterSpinner />;
   if (role !== 'admin') return <ForbiddenCard />;
@@ -170,6 +251,12 @@ export const Admin: React.FC = () => {
         <div className="flex gap-2">
           <button onClick={load} className="p-2.5 bg-gray-900 hover:bg-gray-800 border border-gray-800 rounded-xl text-gray-400 hover:text-white transition-colors active:scale-95" title="Refresh">
             <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
+          </button>
+          <button
+            onClick={() => setShowAddUser(true)}
+            className="flex items-center gap-2 bg-gradient-to-r from-gold-500 to-amber-400 text-black font-bold px-4 py-2.5 rounded-xl text-sm active:scale-95 transition-transform"
+          >
+            <UserPlus size={16} /> Add User
           </button>
         </div>
       </div>
@@ -337,10 +424,35 @@ export const Admin: React.FC = () => {
                   {manageUser.role === 'admin' ? 'Full access to all data and this panel' : 'Standard access'}
                 </span>
               </div>
-              <p className="text-[11px] text-gray-600 mt-2 flex items-start gap-1.5">
-                <Info size={12} className="shrink-0 mt-0.5 text-gray-500" />
-                <span>Promotion is done in Supabase (<span className="font-mono">fintrack_profiles.role</span>)</span>
-              </p>
+              <div className="flex gap-2 mt-3">
+                {manageUser.role === 'admin' ? (
+                  <button
+                    onClick={toggleRole}
+                    disabled={isSaving || manageUser.id === user?.id}
+                    className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-gray-800 border border-gray-700 text-gray-200 hover:bg-gray-700 transition-colors active:scale-95 disabled:opacity-40"
+                  >
+                    Revoke admin
+                  </button>
+                ) : (
+                  <button
+                    onClick={toggleRole}
+                    disabled={isSaving || manageUser.id === user?.id}
+                    className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-gold-500/10 border border-gold-500/30 text-gold-400 hover:bg-gold-500/20 transition-colors active:scale-95 disabled:opacity-40"
+                  >
+                    Make admin
+                  </button>
+                )}
+                <button
+                  onClick={handleDeleteUser}
+                  disabled={isSaving || manageUser.id === user?.id}
+                  className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-colors active:scale-95 disabled:opacity-40"
+                >
+                  Delete user
+                </button>
+              </div>
+              {manageUser.id === user?.id && (
+                <p className="text-[10px] text-gray-600 mt-2">You cannot change or delete your own account here.</p>
+              )}
             </section>
 
             {/* Tier presets */}
@@ -428,6 +540,39 @@ export const Admin: React.FC = () => {
             </button>
           </div>
         )}
+      </Modal>
+
+      {/* Add User modal */}
+      <Modal isOpen={showAddUser} onClose={() => setShowAddUser(false)} title="Add User">
+        <div className="space-y-4">
+          <p className="text-xs text-gray-500 bg-gray-900/60 border border-gray-800 rounded-lg p-3">
+            Creates the account with a confirmed email and the password you set — share it with the user over a secure channel; they can change it later.
+          </p>
+          <div>
+            <label className={labelCls}>Email *</label>
+            <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="user@example.com" className={inputCls} autoFocus />
+          </div>
+          <div>
+            <label className={labelCls}>Display name</label>
+            <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Optional" className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Temporary password *</label>
+            <div className="flex gap-2">
+              <input value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="min 6 characters" className={`${inputCls} font-mono`} />
+              <button type="button" onClick={generatePassword} className="px-3 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gold-400 transition-colors active:scale-95">
+                Generate
+              </button>
+            </div>
+          </div>
+          <button
+            onClick={handleCreateUser}
+            disabled={isWorking || !newEmail.trim() || !newPassword}
+            className="w-full bg-gradient-to-r from-gold-500 to-amber-400 text-black font-bold py-3 rounded-xl active:scale-95 transition-transform disabled:opacity-40"
+          >
+            {isWorking ? 'Creating…' : 'Create User'}
+          </button>
+        </div>
       </Modal>
 
       {/* Toast */}
