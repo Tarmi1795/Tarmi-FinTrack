@@ -300,7 +300,7 @@ export const StatementOfAccount: React.FC<SOAProps> = ({ appState, initialAccoun
                         </div>
                         <div>
                             <h1 className="text-3xl font-bold text-slate-900 tracking-tight uppercase">{appState.businessProfile.name}</h1>
-                            <div className="text-sm text-slate-600 mt-2 space-y-1">
+                            <div className="text-sm text-slate-800 mt-2 space-y-1">
                                 <p>{appState.businessProfile.address}</p>
                                 <p>{appState.businessProfile.email}</p>
                                 <p>{appState.businessProfile.phone}</p>
@@ -309,7 +309,7 @@ export const StatementOfAccount: React.FC<SOAProps> = ({ appState, initialAccoun
                     </div>
                     <div className="text-right">
                         <h2 className="text-2xl font-bold text-slate-800 uppercase tracking-widest mb-2">Statement of Account</h2>
-                        <div className="bg-slate-100 p-3 rounded-lg text-sm text-slate-600 border border-slate-200 inline-block text-right">
+                        <div className="bg-slate-50 p-3 rounded-lg text-sm text-slate-800 border border-slate-200 inline-block text-right">
                              <div className="flex justify-between gap-4"><span className="font-bold">Account:</span> <span>{selectedAccount.name}</span></div>
                              <div className="flex justify-between gap-4"><span className="font-bold">GL Code:</span> <span className="font-mono">{selectedAccount.code}</span></div>
                              <div className="flex justify-between gap-4"><span className="font-bold">Period:</span> <span>{dateRange.start} to {dateRange.end}</span></div>
@@ -350,7 +350,7 @@ export const StatementOfAccount: React.FC<SOAProps> = ({ appState, initialAccoun
                     </thead>
                     <tbody>
                         {/* Opening Balance Row */}
-                        <tr className="bg-yellow-50 text-slate-600 font-medium italic border-b border-gray-200">
+                        <tr className="bg-yellow-50 text-slate-800 font-medium italic border-b border-gray-200">
                              <td className="py-3 px-4">{dateRange.start}</td>
                              <td className="py-3 px-4">Balance Brought Forward</td>
                              <td className="py-3 px-4 text-right">-</td>
@@ -360,7 +360,7 @@ export const StatementOfAccount: React.FC<SOAProps> = ({ appState, initialAccoun
 
                         {ledgerData.rows.map((row, idx) => (
                             <tr key={idx} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
-                                <td className="py-3 px-4 text-slate-600 font-mono whitespace-nowrap">{row.date.split('T')[0]}</td>
+                                <td className="py-3 px-4 text-slate-800 font-mono whitespace-nowrap">{row.date.split('T')[0]}</td>
                                 <td className="py-3 px-4 text-slate-800 font-medium">
                                     {row.richDescription}
                                 </td>
@@ -380,7 +380,7 @@ export const StatementOfAccount: React.FC<SOAProps> = ({ appState, initialAccoun
                             <tr><td colSpan={5} className="py-12 text-center text-slate-400 italic">No transactions in this period.</td></tr>
                         )}
                     </tbody>
-                    <tfoot className="bg-slate-100 font-bold text-slate-800 border-t-2 border-slate-300">
+                    <tfoot className="bg-slate-50 font-bold text-slate-800 border-t-2 border-slate-300">
                         <tr>
                             <td colSpan={2} className="py-4 px-4 text-right uppercase text-xs">Period Totals</td>
                             <td className="py-4 px-4 text-right text-emerald-700">{formatMoney(ledgerData.totalDebits)}</td>

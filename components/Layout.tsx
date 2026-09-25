@@ -344,6 +344,18 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         onClose={() => setIsAddModalOpen(false)}
         title="Quick Transaction"
       >
+        <button
+          onClick={() => { setIsAddModalOpen(false); setIsReceiptOpen(true); }}
+          className="w-full mb-4 flex items-center gap-3 px-4 py-3 bg-gold-500/10 hover:bg-gold-500/20 border border-gold-500/30 rounded-xl text-left transition-colors active:scale-[0.99]"
+        >
+          <div className="p-2 bg-gold-500/20 rounded-lg text-gold-400 shrink-0">
+            <Camera size={18} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-gold-300">Snap a receipt instead</p>
+            <p className="text-[11px] text-gray-400">AI reads the vendor, amount and category for you</p>
+          </div>
+        </button>
         <TransactionForm onComplete={() => setIsAddModalOpen(false)} />
       </Modal>
 

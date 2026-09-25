@@ -2,8 +2,31 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, Send, X, User } from 'lucide-react';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useFinance } from '../context/FinanceContext';
 import { aiService } from '../services/ai';
+
+// Dark-theme markdown styling for assistant answers (tables, bold, code, lists)
+const assistantMarkdownClass = `
+  [&_p]:mb-1.5 [&_p:last-child]:mb-0
+  [&_strong]:text-white [&_strong]:font-semibold
+  [&_em]:text-gold-200/90
+  [&_a]:text-gold-400 [&_a]:underline
+  [&_ul]:list-disc [&_ul]:pl-4 [&_ul]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-4 [&_ol]:my-1.5
+  [&_li]:mb-0.5
+  [&_code]:bg-gray-800 [&_code]:border [&_code]:border-gray-700 [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[12px] [&_code]:font-mono [&_code]:text-gold-200
+  [&_pre]:bg-gray-900 [&_pre]:border [&_pre]:border-gray-800 [&_pre]:rounded-lg [&_pre]:p-2 [&_pre]:overflow-x-auto [&_pre]:my-1.5
+  [&_table]:w-full [&_table]:my-2 [&_table]:text-[12px] [&_table]:border-collapse
+  [&_th]:bg-gray-800 [&_th]:text-gray-100 [&_th]:text-left [&_th]:font-semibold [&_th]:px-2 [&_th]:py-1.5 [&_th]:border [&_th]:border-gray-700
+  [&_td]:px-2 [&_td]:py-1.5 [&_td]:border [&_td]:border-gray-800 [&_td]:text-gray-200
+  [&_tr:nth-child(even)_td]:bg-gray-900/60
+  [&_h1]:text-base [&_h1]:font-bold [&_h1]:text-white [&_h1]:mt-2 [&_h1]:mb-1
+  [&_h2]:text-sm [&_h2]:font-bold [&_h2]:text-white [&_h2]:mt-2 [&_h2]:mb-1
+  [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-gold-300 [&_h3]:mt-1.5 [&_h3]:mb-1
+  [&_blockquote]:border-l-2 [&_blockquote]:border-gold-500/50 [&_blockquote]:pl-2 [&_blockquote]:text-gray-300
+  [&_hr]:border-gray-800 [&_hr]:my-2
+`;
 
 const AiRianeIcon = ({ size = 24, className = "" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -171,7 +194,13 @@ export const AIChat: React.FC = () => {
                     ? 'bg-primary text-white rounded-br-none' 
                     : 'bg-gray-900 border border-gray-800 text-gray-300 rounded-bl-none'
                 }`}>
-                  {msg.text.split('\n').map((line, i) => <p key={i} className="mb-1 last:mb-0">{line}</p>)}
+                  {msg.role === 'assistant' ? (
+                    <div className={assistantMarkdownClass}>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    msg.text.split('\n').map((line, i) => <p key={i} className="mb-1 last:mb-0">{line}</p>)
+                  )}
                 </div>
                 {msg.role === 'user' && (
                   <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0 border border-primary/30">

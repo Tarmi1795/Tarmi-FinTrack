@@ -99,7 +99,7 @@ const ReportRow: React.FC<ReportRowProps> = ({ node, multiplier, indent = 0 }) =
     // Dynamic padding based on indentation level
     const paddingLeft = indent === 0 ? 'pl-2' : (indent === 1 ? 'pl-6' : 'pl-10');
     const textSize = indent === 0 ? 'text-sm' : 'text-xs';
-    const textColor = indent === 0 ? 'text-gray-800 font-medium' : 'text-gray-500';
+    const textColor = indent === 0 ? 'text-gray-900 font-medium' : 'text-gray-700';
 
     return (
         <div className="w-full">
@@ -109,7 +109,7 @@ const ReportRow: React.FC<ReportRowProps> = ({ node, multiplier, indent = 0 }) =
             >
                 <div className={`flex items-center gap-2 ${textSize} ${textColor}`}>
                     {hasChildren && (
-                        <span className="text-gray-400 hover:text-gray-600">
+                        <span className="text-gray-500 hover:text-gray-800">
                             {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                         </span>
                     )}
@@ -600,11 +600,11 @@ export const Reports: React.FC = () => {
         {/* --- TABS --- */}
         
         {activeTab === 'trial_balance' && (
-            <div className="glass-card bg-white text-black p-4 md:p-8 rounded-2xl min-h-[600px] shadow-xl">
+            <div className="paper-card p-4 md:p-8 rounded-2xl min-h-[600px] shadow-xl">
                 <div className="text-center mb-8 border-b border-gray-200 pb-6">
                     <h2 className="text-2xl font-bold text-gray-900 uppercase">{state.businessProfile.name}</h2>
-                    <h3 className="text-xl font-medium text-gray-600 mt-2">TRIAL BALANCE</h3>
-                    <p className="text-sm text-gray-500">As of {dateRange.end}</p>
+                    <h3 className="text-xl font-semibold text-gray-800 mt-2">TRIAL BALANCE</h3>
+                    <p className="text-sm text-gray-700">As of {dateRange.end}</p>
                 </div>
                 <div className="max-w-4xl mx-auto">
                     <table className="w-full text-sm text-left border-collapse">
@@ -624,7 +624,7 @@ export const Reports: React.FC = () => {
                                     </tr>
                                     {trialBalanceData.groups[cls].map(row => (
                                         <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50">
-                                            <td className="py-2 px-4 font-mono text-gray-500">{row.code}</td>
+                                            <td className="py-2 px-4 font-mono text-gray-700">{row.code}</td>
                                             <td className="py-2 px-4 text-gray-800">{row.name}</td>
                                             <td className="py-2 px-4 text-right font-mono text-emerald-700">
                                                 {row.debit > 0 ? formatCurrency(row.debit) : '-'}
@@ -737,13 +737,13 @@ export const Reports: React.FC = () => {
         )}
 
         {activeTab !== 'soa' && activeTab !== 'trial_balance' && activeTab !== 'forecast' && (
-            <div className="glass-card bg-white text-black p-4 md:p-8 rounded-2xl min-h-[600px] shadow-xl">
+            <div className="paper-card p-4 md:p-8 rounded-2xl min-h-[600px] shadow-xl">
                 <div className="text-center mb-8 border-b border-gray-200 pb-6">
                     <h2 className="text-2xl font-bold text-gray-900 uppercase">{state.businessProfile.name}</h2>
-                    <h3 className="text-xl font-medium text-gray-600 mt-2">
+                    <h3 className="text-xl font-semibold text-gray-800 mt-2">
                         {activeTab === 'cash_flow' ? 'Statement of Cash Flows' : activeTab.replace('_', ' ').toUpperCase()}
                     </h3>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-gray-700">
                         {activeTab === 'balance_sheet' ? `As of ${dateRange.end}` : `Period: ${dateRange.start} to ${dateRange.end}`}
                     </p>
                 </div>
@@ -810,9 +810,9 @@ export const Reports: React.FC = () => {
                         </ReportSection>
 
                         {/* Net Income */}
-                        <div className="bg-gray-900 text-white p-4 rounded-lg flex justify-between font-bold text-xl mt-8">
+                        <div className="bg-slate-100 border-2 border-slate-300 p-4 rounded-lg flex justify-between font-bold text-xl mt-8 text-gray-900">
                             <span>NET INCOME</span>
-                            <span className={incomeStatementTree.netIncome >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                            <span className={incomeStatementTree.netIncome >= 0 ? 'text-emerald-700' : 'text-red-700'}>
                                 {formatCurrency(incomeStatementTree.netIncome)}
                             </span>
                         </div>
@@ -822,44 +822,44 @@ export const Reports: React.FC = () => {
                 {activeTab === 'cash_flow' && (
                     <div className="max-w-2xl mx-auto space-y-8">
                         <ReportSection title="OPERATING ACTIVITIES" total={cashFlowStatement.netOperating} variant="gray">
-                            <div className="flex justify-between text-sm py-1 text-gray-600">
+                            <div className="flex justify-between text-sm py-1 text-gray-800">
                                 <span>Cash Receipts</span>
                                 <span>{formatCurrency(cashFlowStatement.operating.in)}</span>
                             </div>
-                            <div className="flex justify-between text-sm py-1 text-gray-600">
+                            <div className="flex justify-between text-sm py-1 text-gray-800">
                                 <span>Cash Paid</span>
                                 <span>({formatCurrency(cashFlowStatement.operating.out)})</span>
                             </div>
                         </ReportSection>
 
                         <ReportSection title="INVESTING ACTIVITIES" total={cashFlowStatement.netInvesting} variant="gray">
-                            <div className="flex justify-between text-sm py-1 text-gray-600">
+                            <div className="flex justify-between text-sm py-1 text-gray-800">
                                 <span>Sale of Assets</span>
                                 <span>{formatCurrency(cashFlowStatement.investing.in)}</span>
                             </div>
-                            <div className="flex justify-between text-sm py-1 text-gray-600">
+                            <div className="flex justify-between text-sm py-1 text-gray-800">
                                 <span>Purchase of Assets</span>
                                 <span>({formatCurrency(cashFlowStatement.investing.out)})</span>
                             </div>
                         </ReportSection>
 
                         <ReportSection title="FINANCING ACTIVITIES" total={cashFlowStatement.netFinancing} variant="gray">
-                            <div className="flex justify-between text-sm py-1 text-gray-600">
+                            <div className="flex justify-between text-sm py-1 text-gray-800">
                                 <span>Loans / Capital Injected</span>
                                 <span>{formatCurrency(cashFlowStatement.financing.in)}</span>
                             </div>
-                            <div className="flex justify-between text-sm py-1 text-gray-600">
+                            <div className="flex justify-between text-sm py-1 text-gray-800">
                                 <span>Repayments / Drawings</span>
                                 <span>({formatCurrency(cashFlowStatement.financing.out)})</span>
                             </div>
                         </ReportSection>
 
                         <div className="bg-gray-100 p-4 rounded-lg space-y-2 mt-8">
-                            <div className="flex justify-between text-sm font-medium text-gray-600">
+                            <div className="flex justify-between text-sm font-bold text-gray-900">
                                 <span>Net Increase (Decrease) in Cash</span>
                                 <span>{formatCurrency(cashFlowStatement.netChange)}</span>
                             </div>
-                            <div className="flex justify-between text-sm font-medium text-gray-600">
+                            <div className="flex justify-between text-sm font-bold text-gray-900">
                                 <span>Cash at Beginning of Period</span>
                                 <span>{formatCurrency(cashFlowStatement.startCash)}</span>
                             </div>

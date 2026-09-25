@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 export interface SwipeAction {
   icon: React.ReactNode;
@@ -31,6 +31,17 @@ export const SwipeActions: React.FC<SwipeActionsProps> = ({ children, actions, c
   const wrapperRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
+  // Swipe is a mobile-only pattern — desktop shows the caller's own inline buttons.
+  const [isTouchLayout, setIsTouchLayout] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const onChange = (e: MediaQueryListEvent) => setIsTouchLayout(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   // Mutable gesture state kept in a ref so touchmove never triggers a re-render.
   const gesture = useRef({
@@ -129,7 +140,8 @@ export const SwipeActions: React.FC<SwipeActionsProps> = ({ children, actions, c
     };
   }, [actions.length]);
 
-  if (actions.length === 0) return <>{children}</>;
+  // Desktop: render children untouched — no action layer, no gesture handlers.
+  if (!isTouchLayout || actions.length === 0) return <>{children}</>;
 
   const handleActionClick = (action: SwipeAction) => {
     action.onClick();
@@ -149,7 +161,7 @@ export const SwipeActions: React.FC<SwipeActionsProps> = ({ children, actions, c
   };
 
   return (
-    <div ref={wrapperRef} className={`relative overflow-hidden ${className}`} style={{ touchAction: 'pan-y' }}>
+    <div ref={wrapperRef} className={`relative overflow-hidden rounded-xl ${className}`} style={{ touchAction: 'pan-y' }}>
       <div ref={actionsRef} className="absolute inset-y-0 right-0 flex">
         {actions.map((action, i) => (
           <button
@@ -165,7 +177,7 @@ export const SwipeActions: React.FC<SwipeActionsProps> = ({ children, actions, c
       </div>
       <div
         ref={contentRef}
-        className="relative z-10 h-full"
+        className="relative z-10 h-full bg-[#18181b]"
         style={{ willChange: 'transform' }}
         onClick={handleContentClick}
       >
