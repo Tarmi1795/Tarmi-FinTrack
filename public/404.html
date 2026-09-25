@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Tarmi FinTrack Pro</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #12100d; }
+    body { display: flex; align-items: center; justify-content: center; font-family: 'Inter', sans-serif; color: #9ca3af; }
+  </style>
+  <script>
+    // Bridge bare deep links into the hash-routed app: /admin -> /#/admin
+    (function () {
+      location.replace('/#' + location.pathname + location.search);
+    })();
+  </script>
+</head>
+<body>
+  <noscript><p>Enable JavaScript to use Tarmi FinTrack Pro.</p></noscript>
+</body>
+</html>
