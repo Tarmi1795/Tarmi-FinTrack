@@ -4,11 +4,12 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Plus, PieChart, Settings as SettingsIcon, ArrowRightLeft, Monitor,
   BookOpen, LogOut, Target, Calculator, CandlestickChart, Package, Menu, X, Search,
-  FileText, PiggyBank, Camera,
+  FileText, PiggyBank, Camera, Shield,
 } from 'lucide-react';
 import { Modal } from './ui/Modal';
 import { TransactionForm } from './TransactionForm';
 import { ReceiptCapture } from './ReceiptCapture';
+import { useAccess } from '../context/AccessContext';
 import { Logo } from './ui/Logo';
 import { AIChat } from './AIChat';
 import { InstallPWA } from './InstallPWA';
@@ -23,6 +24,7 @@ interface NavItemDef { icon: React.ElementType; label: string; to: string; badge
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { authMethods, state } = useFinance();
+  const { role, isModuleEnabled } = useAccess();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
@@ -82,7 +84,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isAddModalOpen, navigate]);
 
-  // Desktop sidebar navigation (all destinations)
+  // Desktop sidebar navigation (module-restricted; admin entry appended for admins)
   const navItems: NavItemDef[] = [
     { icon: LayoutDashboard, label: 'Dashboard', to: '/' },
     { icon: Target, label: 'Budget', to: '/budget' },
@@ -95,15 +97,16 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     { icon: CandlestickChart, label: 'Trading', to: '/trading' },
     { icon: Package, label: 'Inventory', to: '/inventory' },
     { icon: PiggyBank, label: 'Goals', to: '/goals' },
+    ...(role === 'admin' ? [{ icon: Shield, label: 'Admin', to: '/admin' } as NavItemDef] : []),
     { icon: SettingsIcon, label: 'Settings', to: '/settings' },
-  ];
+  ].filter(item => isModuleEnabled(item.to));
 
   // Mobile bottom tab bar: 4 destinations + center Quick Add
   const bottomNavItems = [
     { icon: LayoutDashboard, label: 'Home', to: '/' },
     { icon: BookOpen, label: 'Journal', to: '/journal' },
     { icon: PieChart, label: 'Reports', to: '/reports' },
-  ];
+  ].filter(item => isModuleEnabled(item.to));
 
   // Secondary destinations shown in the mobile "More" sheet
   const moreNavItems: NavItemDef[] = [
@@ -115,8 +118,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     { icon: Package, label: 'Inventory', to: '/inventory' },
     { icon: PiggyBank, label: 'Goals', to: '/goals' },
     { icon: Calculator, label: 'Money Counter', to: '/money-counter' },
+    ...(role === 'admin' ? [{ icon: Shield, label: 'Admin', to: '/admin' } as NavItemDef] : []),
     { icon: SettingsIcon, label: 'Settings', to: '/settings' },
-  ];
+  ].filter(item => isModuleEnabled(item.to));
 
   const goFromMore = (to: string) => {
     setIsMoreOpen(false);

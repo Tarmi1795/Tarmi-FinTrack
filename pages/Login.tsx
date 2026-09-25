@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
-import { Lock, ArrowRight, ShieldCheck, Mail, AlertTriangle, Download, Share, PlusSquare, Monitor, Smartphone, Bot, Sparkles } from 'lucide-react';
+import { Lock, ArrowRight, ShieldCheck, Mail, AlertTriangle, Download, Share, PlusSquare, Monitor, Smartphone, Bot, Sparkles, BookOpenCheck, CandlestickChart, Crown } from 'lucide-react';
 import { useFinance } from '../context/FinanceContext';
 import { usePWA } from '../context/PWAContext';
 import { Modal } from '../components/ui/Modal';
+import { PricingPlans } from '../components/PricingPlans';
 import { GoogleGenAI } from "@google/genai";
 import { Logo } from '../components/ui/Logo';
 
@@ -26,6 +27,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [error, setError] = useState<string | null>(null);
   const [showIOSInstruction, setShowIOSInstruction] = useState(false);
   const [showGenericInstruction, setShowGenericInstruction] = useState(false);
+  const [showPlans, setShowPlans] = useState(false);
   
   // Background State
   const [bgImage, setBgImage] = useState<string>(FALLBACK_BG);
@@ -253,6 +255,41 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                         <br/><span className="text-gold-400 font-medium mt-2 block">Experience the power of luxurious financial control.</span>
                     </p>
                 </motion.div>
+
+                {/* Feature Strip */}
+                <motion.div 
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 1.5, duration: 0.8 }}
+                    className="grid grid-cols-3 gap-3 max-w-lg"
+                >
+                    <div className="glass-panel rounded-xl p-3">
+                        <BookOpenCheck size={18} className="text-gold-400 mb-1.5" />
+                        <p className="text-xs text-gray-200 font-semibold leading-tight">Double-entry engine</p>
+                        <p className="text-[10px] text-gray-500 mt-1 leading-snug">Every posting balanced.</p>
+                    </div>
+                    <div className="glass-panel rounded-xl p-3">
+                        <Sparkles size={18} className="text-gold-400 mb-1.5" />
+                        <p className="text-xs text-gray-200 font-semibold leading-tight">AI CFO — AI_riane</p>
+                        <p className="text-[10px] text-gray-500 mt-1 leading-snug">Ask your books anything.</p>
+                    </div>
+                    <div className="glass-panel rounded-xl p-3">
+                        <CandlestickChart size={18} className="text-gold-400 mb-1.5" />
+                        <p className="text-xs text-gray-200 font-semibold leading-tight">Trading &amp; Inventory</p>
+                        <p className="text-[10px] text-gray-500 mt-1 leading-snug">One vault, all modules.</p>
+                    </div>
+                </motion.div>
+
+                {/* See Plans */}
+                <motion.button 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 1.7, duration: 0.8 }}
+                    onClick={() => setShowPlans(true)}
+                    className="w-fit flex items-center gap-2 border border-gold-500/40 text-gold-300 hover:bg-gold-500/10 px-4 py-2 rounded-xl text-sm font-bold transition-all active:scale-95"
+                >
+                    <Crown size={14} /> See plans
+                </motion.button>
             </div>
 
             {/* Gold Dust Particles */}
@@ -456,6 +493,13 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                                 {mode === 'login' ? "New here? Create a Visionary Account" : "Already have access? Log In"}
                             </button>
                         </div>
+
+                        {/* Pricing Link */}
+                        <div className="mt-2 text-center">
+                            <button onClick={() => setShowPlans(true)} className="text-xs text-gray-500 hover:text-gold-400 transition-colors">
+                                View pricing plans
+                            </button>
+                        </div>
                     </div>
                     
                     {/* Bottom Secure Badge */}
@@ -485,6 +529,10 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 </div>
                 <button onClick={() => setShowIOSInstruction(false)} className="w-full py-3 bg-gray-800 hover:bg-gray-700 rounded-xl mt-4 text-sm font-bold">Understood</button>
             </div>
+        </Modal>
+
+        <Modal isOpen={showPlans} onClose={() => setShowPlans(false)} title="Tarmi FinTrack Plans">
+            <PricingPlans />
         </Modal>
 
         <Modal isOpen={showGenericInstruction} onClose={() => setShowGenericInstruction(false)} title="Install App">

@@ -1,9 +1,10 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { Trash2, Plus, LayoutGrid, Book, AlertTriangle, Users, Pencil, Check, X, Database, Search, FileJson, FileSpreadsheet, Building2, ChevronRight, ChevronDown, Folder, Repeat, Mail, Phone, MapPin, Tag, Star, Upload, FileText, Globe, ArrowRightLeft, RefreshCw } from 'lucide-react';
+import { Trash2, Plus, LayoutGrid, Book, AlertTriangle, Users, Pencil, Check, X, Database, Search, FileJson, FileSpreadsheet, Building2, ChevronRight, ChevronDown, Folder, Repeat, Mail, Phone, MapPin, Tag, Star, Upload, FileText, Globe, ArrowRightLeft, RefreshCw, Crown } from 'lucide-react';
 import { Account, TransactionTemplate, AccountClass, Party, PartyType, AccountLevel, Transaction, AppState, CurrencyCode, RecurringTransaction, RecurrenceFrequency } from '../types';
 import { Modal } from '../components/ui/Modal';
+import { PricingPlans } from '../components/PricingPlans';
 import { confirmDialog, alertDialog } from '../components/ui/ConfirmDialog';
 import { format, parseISO, addMonths, addWeeks, addYears, addDays, endOfDay } from 'date-fns';
 import { excelService } from '../services/excel';
@@ -79,6 +80,9 @@ export const Settings: React.FC = () => {
   const [migrationTarget, setMigrationTarget] = useState<CurrencyCode | ''>('');
   const [migrationRate, setMigrationRate] = useState('');
   const [migrationConfirm, setMigrationConfirm] = useState('');
+
+  // Plans Modal State
+  const [showPlans, setShowPlans] = useState(false);
 
   // Refs
   const backupInputRef = useRef<HTMLInputElement>(null);
@@ -521,6 +525,22 @@ export const Settings: React.FC = () => {
                <button onClick={handleExcelExport} className="flex items-center gap-2 bg-green-900/40 hover:bg-green-900/60 text-green-300 px-4 py-2.5 rounded-lg text-sm font-medium border border-green-900/50 transition-all active:scale-95"><FileSpreadsheet size={16} /> Export</button>
                <div className="relative flex-shrink-0"><input type="file" accept=".xlsx" ref={excelInputRef} onChange={handleExcelImport} className="hidden" id="excel-restore"/><label htmlFor="excel-restore" className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-200 px-4 py-2.5 rounded-lg text-sm font-medium border border-gray-700 cursor-pointer transition-all active:scale-95"><Upload size={16} /> Import</label></div>
           </div>
+      </div>
+
+      {/* Plan Banner — visible on every tab */}
+      <div className="glass-card rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-gold-900/30 border border-gold-500/30 flex items-center justify-center shrink-0">
+                  <Crown size={16} className="text-gold-400" />
+              </div>
+              <div className="min-w-0">
+                  <p className="text-sm font-bold text-gray-100">Plan: Solo (Free)</p>
+                  <p className="text-xs text-gray-500 truncate">Every module is active on your current rollout</p>
+              </div>
+          </div>
+          <button onClick={() => setShowPlans(true)} className="shrink-0 w-fit flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-bold border border-gold-500/40 text-gold-300 hover:bg-gold-500/10 transition-all active:scale-95">
+              <Crown size={14} /> View plans
+          </button>
       </div>
 
       <div className="tab-scroll md:overflow-visible pb-1">
@@ -1005,6 +1025,10 @@ export const Settings: React.FC = () => {
                   </button>
               </form>
           )}
+      </Modal>
+
+      <Modal isOpen={showPlans} onClose={() => setShowPlans(false)} title="Pricing Plans">
+          <PricingPlans currentTierId="solo" compact />
       </Modal>
     </div>
   );

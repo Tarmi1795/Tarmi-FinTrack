@@ -8,6 +8,7 @@ import { GoogleGenAI } from "@google/genai";
 import { AppState } from '../types';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { buildAccountTree, calculateDirectBalance } from '../utils/accountHierarchy';
+import { adminService } from './admin';
 
 const ZAI_ENDPOINTS = [
   'https://api.z.ai/api/paas/v4',        // general API (pay-as-you-go balance)
@@ -50,18 +51,27 @@ export const aiService = {
 
   /** CFO chat over a precomputed financial summary */
   askCFO: async (query: string, state: AppState): Promise<string> => {
+    // Advisory daily limit (server-side usage log, client-enforced)
+    const limit = await adminService.checkAiLimit();
+    if (!limit.allowed) {
+      return `You've reached today's AI limit (${limit.used}/${limit.limit} messages). The counter resets at midnight — or ask the administrator to raise your limit.`;
+    }
+
     const summary = buildFinancialSummary(state);
     const system = buildSystemPrompt(state, summary);
 
     const zaiKey = getZaiKey();
     if (zaiKey) {
       try {
-        return await askZai(zaiKey, ZAI_CHAT_MODEL, [
+        const answer = await askZai(zaiKey, ZAI_CHAT_MODEL, [
           { role: 'system', content: system },
           { role: 'user', content: query },
         ], 0.2);
+        adminService.logAiUsage('chat', ZAI_CHAT_MODEL, true);
+        return answer;
       } catch (error: any) {
         const geminiKey = getGeminiKey();
+        adminService.logAiUsage('chat', ZAI_CHAT_MODEL, false);
         if (!geminiKey) return mapError(error);
         console.warn('AI_riane: z.ai failed, falling back to Gemini:', error?.message);
       }
@@ -72,8 +82,11 @@ export const aiService = {
       return "AI service is not configured. Add a VITE_ZAI_API_KEY (z.ai) or VITE_GEMINI_API_KEY to the environment.";
     }
     try {
-      return await askGemini(geminiKey, `${system}\n\nUser Question: ${query}`);
+      const answer = await askGemini(geminiKey, `${system}\n\nUser Question: ${query}`);
+      adminService.logAiUsage('chat', 'gemini-3-flash-preview', true);
+      return answer;
     } catch (error: any) {
+      adminService.logAiUsage('chat', 'gemini-3-flash-preview', false);
       return mapError(error);
     }
   },
@@ -83,14 +96,19 @@ export const aiService = {
     const zaiKey = getZaiKey();
     if (zaiKey) {
       try {
-        return await askZaiVision(zaiKey, imageDataUrl, prompt);
+        const answer = await askZaiVision(zaiKey, imageDataUrl, prompt);
+        adminService.logAiUsage('vision', ZAI_VISION_MODEL, true);
+        return answer;
       } catch (error: any) {
+        adminService.logAiUsage('vision', ZAI_VISION_MODEL, false);
         console.warn('AI_riane: z.ai vision failed, falling back to Gemini:', error?.message);
       }
     }
     const geminiKey = getGeminiKey();
     if (!geminiKey) throw new Error('No AI provider configured for vision.');
-    return await askGeminiVision(geminiKey, imageDataUrl, prompt);
+    const answer = await askGeminiVision(geminiKey, imageDataUrl, prompt);
+    adminService.logAiUsage('vision', 'gemini-3-flash-preview', true);
+    return answer;
   },
 };
 

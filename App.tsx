@@ -1,11 +1,13 @@
 
 import React, { Suspense, lazy } from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { FinanceProvider, useFinance } from './context/FinanceContext';
 import { PWAProvider } from './context/PWAContext';
+import { AccessProvider, useAccess } from './context/AccessContext';
 import { Layout } from './components/Layout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { DialogHost } from './components/ui/ConfirmDialog';
+import { RequireAdmin } from './components/RequireAdmin';
 
 const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
 const ApAr = lazy(() => import('./pages/ApAr').then(m => ({ default: m.ApAr })));
@@ -21,12 +23,21 @@ const Trading = lazy(() => import('./pages/Trading').then(m => ({ default: m.Tra
 const Inventory = lazy(() => import('./pages/Inventory').then(m => ({ default: m.Inventory })));
 const Invoices = lazy(() => import('./pages/Invoices').then(m => ({ default: m.Invoices })));
 const Goals = lazy(() => import('./pages/Goals').then(m => ({ default: m.Goals })));
+const Admin = lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })));
 
 const PageLoader: React.FC = () => (
   <div className="flex items-center justify-center py-24" role="status" aria-label="Loading page">
     <div className="w-8 h-8 rounded-full border-2 border-gray-700 border-t-gold-500 animate-spin" />
   </div>
 );
+
+// Redirects to the dashboard when the current route's module is restricted for this user
+const ModuleRoute: React.FC<{ routeKey: string; children: React.ReactNode }> = ({ routeKey, children }) => {
+  const { isModuleEnabled } = useAccess();
+  const location = useLocation();
+  if (!isModuleEnabled(routeKey)) return <Navigate to="/" replace state={{ from: location.pathname }} />;
+  return <>{children}</>;
+};
 
 const AppContent: React.FC = () => {
   const { user, authLoading } = useFinance();
@@ -57,16 +68,17 @@ const AppContent: React.FC = () => {
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/" element={<Dashboard />} />
-                <Route path="/budget" element={<Budget />} />
-                <Route path="/apar" element={<ApAr />} />
-                <Route path="/assets" element={<Assets />} />
-                <Route path="/journal" element={<Journal />} />
-                <Route path="/reports" element={<Reports />} />
-                <Route path="/money-counter" element={<MoneyCounter />} />
-                <Route path="/trading" element={<Trading />} />
-                <Route path="/inventory" element={<Inventory />} />
-                <Route path="/invoices" element={<Invoices />} />
-                <Route path="/goals" element={<Goals />} />
+                <Route path="/budget" element={<ModuleRoute routeKey="/budget"><Budget /></ModuleRoute>} />
+                <Route path="/apar" element={<ModuleRoute routeKey="/apar"><ApAr /></ModuleRoute>} />
+                <Route path="/assets" element={<ModuleRoute routeKey="/assets"><Assets /></ModuleRoute>} />
+                <Route path="/journal" element={<ModuleRoute routeKey="/journal"><Journal /></ModuleRoute>} />
+                <Route path="/reports" element={<ModuleRoute routeKey="/reports"><Reports /></ModuleRoute>} />
+                <Route path="/money-counter" element={<ModuleRoute routeKey="/money-counter"><MoneyCounter /></ModuleRoute>} />
+                <Route path="/trading" element={<ModuleRoute routeKey="/trading"><Trading /></ModuleRoute>} />
+                <Route path="/inventory" element={<ModuleRoute routeKey="/inventory"><Inventory /></ModuleRoute>} />
+                <Route path="/invoices" element={<ModuleRoute routeKey="/invoices"><Invoices /></ModuleRoute>} />
+                <Route path="/goals" element={<ModuleRoute routeKey="/goals"><Goals /></ModuleRoute>} />
+                <Route path="/admin" element={<RequireAdmin><Admin /></RequireAdmin>} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
@@ -81,8 +93,10 @@ const App: React.FC = () => {
   return (
     <PWAProvider>
       <FinanceProvider>
-        <AppContent />
-        <DialogHost />
+        <AccessProvider>
+          <AppContent />
+          <DialogHost />
+        </AccessProvider>
       </FinanceProvider>
     </PWAProvider>
   );

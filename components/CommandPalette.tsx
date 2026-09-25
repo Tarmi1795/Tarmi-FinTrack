@@ -6,6 +6,7 @@ import {
   Calculator, CandlestickChart, Package, Settings as SettingsIcon,
 } from 'lucide-react';
 import { useFinance } from '../context/FinanceContext';
+import { useAccess } from '../context/AccessContext';
 
 interface CommandPaletteProps {
   open: boolean;
@@ -36,6 +37,7 @@ const fmtAmount = (n: number) =>
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, onQuickAdd }) => {
   const { state } = useFinance();
+  const { isModuleEnabled } = useAccess();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -54,6 +56,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
 
   const allItems = useMemo<PaletteItem[]>(() => {
     const items: PaletteItem[] = [];
+    // Restricted modules are hidden from actions, navigation and deep results
+    const enabled = (to: string) => isModuleEnabled(to);
 
     // --- Actions ---
     items.push(
@@ -65,14 +69,14 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
         icon: Plus,
         run: onQuickAdd,
       },
-      {
+      ...(enabled('/invoices') ? [{
         id: 'action-new-invoice',
-        section: 'Actions',
+        section: 'Actions' as const,
         label: 'New Invoice',
         sublabel: 'Invoices',
         icon: FileText,
         run: () => { onClose(); navigate('/invoices'); },
-      },
+      }] : []),
       {
         id: 'action-new-bill',
         section: 'Actions',
@@ -81,22 +85,22 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
         icon: Receipt,
         run: () => { onClose(); navigate('/apar', { state: { openMode: 'payable', openSubMode: 'bill' } }); },
       },
-      {
+      ...(enabled('/trading') ? [{
         id: 'action-record-deposit',
-        section: 'Actions',
+        section: 'Actions' as const,
         label: 'Record Deposit',
         sublabel: 'Trading',
         icon: ArrowDownToLine,
         run: () => { onClose(); navigate('/trading'); },
-      },
-      {
+      }] : []),
+      ...(enabled('/money-counter') ? [{
         id: 'action-money-count',
-        section: 'Actions',
+        section: 'Actions' as const,
         label: 'Update Money Count',
         sublabel: 'Money Counter',
         icon: Calculator,
         run: () => { onClose(); navigate('/money-counter'); },
-      },
+      }] : []),
     );
 
     // --- Navigation ---
@@ -114,7 +118,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
       { label: 'Inventory', to: '/inventory', icon: Package },
       { label: 'Settings', to: '/settings', icon: SettingsIcon },
     ];
-    navDestinations.forEach(d => {
+    navDestinations.filter(d => enabled(d.to)).forEach(d => {
       items.push({
         id: `nav-${d.to}`,
         section: 'Navigation',
@@ -169,7 +173,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ open, onClose, o
       });
 
     return items;
-  }, [state.accounts, state.parties, state.transactions, navigate, onClose, onQuickAdd]);
+  }, [state.accounts, state.parties, state.transactions, navigate, onClose, onQuickAdd, isModuleEnabled]);
 
   // Filter (case-insensitive substring across label + sublabel).
   // Empty query shows only Actions + Navigation.
