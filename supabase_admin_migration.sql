@@ -69,16 +69,23 @@ CREATE POLICY "Admins can view all user_settings" ON public.user_settings FOR SE
 DROP POLICY IF EXISTS "Admins can update all user_settings" ON public.user_settings;
 CREATE POLICY "Admins can update all user_settings" ON public.user_settings FOR UPDATE USING ((SELECT public.is_admin()));
 
--- Admin SELECT policies on core tables (owner policies remain in force)
-DO $$
-DECLARE
-    t TEXT;
-BEGIN
-    FOREACH t IN ARRAY ARRAY['fintrack_profiles', 'fintrack_transactions', 'invoices', 'trading_accounts', 'receipts', 'fintrack_receivables']
-    LOOP
-        EXECUTE format('DROP POLICY IF EXISTS "Admins can view all %s" ON public.%I', t, t);
-        EXECUTE format(
-            'CREATE POLICY "Admins can view all %s" ON public.%I FOR SELECT USING ((SELECT public.is_admin()))',
-            t, t);
-    END LOOP;
-END $$;
+-- User data is STRICTLY owner-scoped: the admin gets NO raw-row access to
+-- content tables. The panel's per-user numbers come from the SECURITY DEFINER
+-- aggregate below (counts and timestamps only — never row contents).
+DROP POLICY IF EXISTS "Admins can view all fintrack_transactions" ON public.fintrack_transactions;
+DROP POLICY IF EXISTS "Admins can view all invoices" ON public.invoices;
+DROP POLICY IF EXISTS "Admins can view all trading_accounts" ON public.trading_accounts;
+DROP POLICY IF EXISTS "Admins can view all receipts" ON public.receipts;
+DROP POLICY IF EXISTS "Admins can view all fintrack_receivables" ON public.fintrack_receivables;
+
+CREATE OR REPLACE FUNCTION public.admin_user_stats()
+RETURNS TABLE(user_id uuid, transactions bigint, invoices bigint, last_active timestamptz)
+LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE
+AS $$
+  SELECT
+    p.id,
+    (SELECT count(*) FROM public.fintrack_transactions t WHERE t.user_id = p.id),
+    (SELECT count(*) FROM public.invoices i WHERE i.user_id = p.id),
+    (SELECT max(t.updated_at) FROM public.fintrack_transactions t WHERE t.user_id = p.id)
+  FROM public.fintrack_profiles p
+$$;

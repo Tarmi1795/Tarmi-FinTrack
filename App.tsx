@@ -42,7 +42,7 @@ const ModuleRoute: React.FC<{ routeKey: string; children: React.ReactNode }> = (
 };
 
 const AppContent: React.FC = () => {
-  const { user, authLoading, state } = useFinance();
+  const { user, authLoading, state, isNewUser } = useFinance();
 
   if (authLoading) {
       return (
@@ -62,7 +62,7 @@ const AppContent: React.FC = () => {
 
   const showOnboarding = user
     && !!state.businessProfile.baseCurrency
-    && isPristineSeed(state)
+    && (isNewUser || isPristineSeed(state))
     && localStorage.getItem(onboardingFlagKey(user.id)) !== 'done';
 
   return (

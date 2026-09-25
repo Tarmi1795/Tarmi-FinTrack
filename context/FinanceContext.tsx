@@ -64,8 +64,10 @@ type Action =
   | { type: 'SET_STATE'; payload: any }
   | { type: 'MIGRATE_BASE_CURRENCY'; payload: { newCurrency: CurrencyCode; rate: number } };
 
-const rawState = storageService.load();
-const initialState: AppState = rawState ? migrateState(rawState) : {
+// Startup state is ALWAYS fresh seeds — no stored data is read before a user
+// is bound (services/storage.ts scopes data per signed-in account). After
+// sign-in, the user's own scoped cache is loaded and then refreshed from sync.
+const initialState: AppState = {
     transactions: SEED_TRANSACTIONS,
     accounts: DEFAULT_ACCOUNTS,
     receivables: SEED_RECEIVABLES,
@@ -334,6 +336,7 @@ interface FinanceContextType {
   lastError?: string;
   user: User | null;
   authLoading: boolean;
+  isNewUser: boolean;
   authMethods: {
       login: (e: string, p: string) => Promise<any>;
       signUp: (e: string, p: string) => Promise<any>;
@@ -357,6 +360,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [syncStatus, setSyncStatus] = useState<'offline' | 'syncing' | 'synced' | 'error'>('offline');
   const [lastError, setLastError] = useState<string | undefined>(undefined);
   const [user, setUser] = useState<User | null>(null);
+  const [isNewUser, setIsNewUser] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   
   const isRemoteUpdate = useRef(false);
@@ -395,6 +399,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             console.warn("Sync Pull Error:", error);
             if (String(error).includes('404') || String(error).includes('406') || String(error).includes('PGRST116')) {
                  console.log("New user detected, pushing seed data.");
+                 setIsNewUser(true);
                  const { error: pushError } = await supabaseService.pushData(currentUser.id, stateRef.current);
                  if (pushError) setLastError(String(pushError));
                  setSyncStatus('synced');
@@ -403,6 +408,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
                  setSyncStatus('error');
             }
         } else if (data) {
+            setIsNewUser(false);
             isRemoteUpdate.current = true;
             // Ensure migration happens on pull
             dispatch({ type: 'SET_STATE', payload: data });
@@ -431,8 +437,17 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setAuthLoading(false); 
 
         if (event === 'SIGNED_IN' && currentUser) {
-            performPull(currentUser); 
+            // Bind storage to THIS account first: no other account's local data
+            // may ever be shown, even before sync resolves.
+            storageService.setActiveUser(currentUser.id);
+            const stored = storageService.loadStored();
+            if (stored) {
+                isRemoteUpdate.current = true;
+                dispatch({ type: 'SET_STATE', payload: stored });
+            }
+            performPull(currentUser);
         } else if (event === 'SIGNED_OUT') {
+            storageService.setActiveUser(null);
             dispatch({ type: 'RESET_DATA' });
             setSyncStatus('offline');
             setUser(null);
@@ -441,9 +456,15 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
 
     supabaseService.auth.getUser().then((currentUser) => {
-        setAuthLoading(false); 
+        setAuthLoading(false);
         if (currentUser) {
             setUser(currentUser);
+            storageService.setActiveUser(currentUser.id);
+            const stored = storageService.loadStored();
+            if (stored) {
+                isRemoteUpdate.current = true;
+                dispatch({ type: 'SET_STATE', payload: stored });
+            }
             performPull(currentUser);
         }
     });
@@ -734,7 +755,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   return (
-    <FinanceContext.Provider value={{ state, dispatch, syncConfig, updateSyncConfig, refreshData, pushDataManual, syncStatus, lastError, user, authLoading, authMethods }}>
+    <FinanceContext.Provider value={{ state, dispatch, syncConfig, updateSyncConfig, refreshData, pushDataManual, syncStatus, lastError, user, authLoading, authMethods, isNewUser }}>
       {children}
     </FinanceContext.Provider>
   );

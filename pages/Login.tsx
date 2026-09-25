@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
-import { Lock, ArrowRight, ShieldCheck, Mail, AlertTriangle, Download, Share, PlusSquare, Monitor, Smartphone, Bot, Sparkles, BookOpenCheck, CandlestickChart, Crown } from 'lucide-react';
+import { Lock, ArrowRight, ShieldCheck, Mail, AlertTriangle, Download, Share, PlusSquare, Monitor, Smartphone, Bot, UserPlus, BookOpenCheck, CandlestickChart, Crown } from 'lucide-react';
 import { useFinance } from '../context/FinanceContext';
 import { usePWA } from '../context/PWAContext';
 import { Modal } from '../components/ui/Modal';
@@ -290,7 +290,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                         <p className="text-[10px] text-gray-500 mt-1 leading-snug">Every posting balanced.</p>
                     </div>
                     <div className="glass-panel rounded-xl p-3">
-                        <Sparkles size={18} className="text-gold-400 mb-1.5" />
+                        <Bot size={18} className="text-gold-400 mb-1.5" />
                         <p className="text-xs text-gray-200 font-semibold leading-tight">AI CFO — AI_riane</p>
                         <p className="text-[10px] text-gray-500 mt-1 leading-snug">Ask your books anything.</p>
                     </div>
@@ -569,7 +569,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                                     {loading
                                         ? (isSignup ? 'Creating…' : 'Authenticating…')
                                         : (isSignup ? 'Create my account' : 'Sign In')}
-                                    {!loading && (isSignup ? <Sparkles size={15} /> : <ArrowRight size={16} />)}
+                                    {!loading && (isSignup ? <UserPlus size={15} /> : <ArrowRight size={16} />)}
                                 </span>
                             </motion.button>
                         </form>

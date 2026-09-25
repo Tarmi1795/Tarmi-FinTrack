@@ -8,7 +8,7 @@ import { onboardingFlagKey } from '../utils/onboardingFlags';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Sparkles, Check, ChevronLeft, ChevronRight, Wallet, TrendingUp, TrendingDown,
+  Check, ChevronLeft, ChevronRight, Wallet, TrendingUp, TrendingDown, Wand2,
   Boxes, HandCoins, Store, UtensilsCrossed, Factory, HardHat, Briefcase, Loader2, ListTree
 } from 'lucide-react';
 
@@ -152,7 +152,7 @@ export const OnboardingWizard: React.FC<{ onComplete: () => void }> = ({ onCompl
       <div className="max-w-2xl mx-auto px-4 py-8 md:py-12">
         {/* Header */}
         <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-gold-500/10 rounded-xl"><Sparkles className="text-gold-500" size={20} /></div>
+          <div className="p-2 bg-gold-500/10 rounded-xl"><ListTree className="text-gold-500" size={20} /></div>
           <div>
             <h1 className="text-xl md:text-2xl font-bold text-white">Let's set up your books</h1>
             <p className="text-xs text-gray-500">A few questions — then a tailored chart of accounts is built for you</p>
@@ -371,7 +371,7 @@ export const OnboardingWizard: React.FC<{ onComplete: () => void }> = ({ onCompl
               disabled={!canProceed}
               className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-gold-500 to-amber-400 text-black font-bold rounded-xl text-sm active:scale-95 transition-transform disabled:opacity-40"
             >
-              <Sparkles size={16} /> Build my chart of accounts
+              <Wand2 size={16} /> Build my chart of accounts
             </button>
           )}
           {step === 7 && (

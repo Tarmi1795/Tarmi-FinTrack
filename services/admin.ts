@@ -71,27 +71,23 @@ export const adminService = {
     return (data || []) as AdminUserProfile[];
   },
 
-  async countRows(table: string, userId: string, since?: string): Promise<number> {
-    let q = supabase.from(table).select('*', { count: 'exact', head: true }).eq('user_id', userId);
-    if (since) q = q.gte('created_at', since);
-    const { count, error } = await q;
-    if (error) return 0; // a denied table shouldn't break the dashboard
-    return count || 0;
-  },
-
+  /**
+   * Aggregate per-user counts via the SECURITY DEFINER admin_user_stats() RPC —
+   * the admin never reads other users' raw rows.
+   */
   async getUserStats(userId: string, aiTotal: number, aiToday: number): Promise<AdminUserStats> {
-    const [transactions, invoices, txMeta] = await Promise.all([
-      this.countRows('fintrack_transactions', userId),
-      this.countRows('invoices', userId),
-      supabase.from('fintrack_transactions').select('updated_at').eq('user_id', userId).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
-    ]);
+    const { data, error } = await supabase.rpc('admin_user_stats');
+    if (error || !data) {
+      return { userId, transactions: 0, invoices: 0, aiCallsTotal: aiTotal, aiCallsToday: aiToday, lastActive: null };
+    }
+    const row = (data as any[]).find(r => r.user_id === userId);
     return {
       userId,
-      transactions,
-      invoices,
+      transactions: Number(row?.transactions || 0),
+      invoices: Number(row?.invoices || 0),
       aiCallsTotal: aiTotal,
       aiCallsToday: aiToday,
-      lastActive: txMeta.data?.updated_at || null,
+      lastActive: row?.last_active || null,
     };
   },
 
