@@ -68,3 +68,6 @@ secrets/
 .zencoder/
 skills/
 skills-lock.json
+
+# Local backup exports (contain user financial data)
+backups/
