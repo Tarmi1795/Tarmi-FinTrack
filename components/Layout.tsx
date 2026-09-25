@@ -4,11 +4,12 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Plus, PieChart, Settings as SettingsIcon, ArrowRightLeft, Monitor,
   BookOpen, LogOut, Target, Calculator, CandlestickChart, Package, Menu, X, Search,
-  FileText, PiggyBank, Camera, Shield,
+  FileText, PiggyBank, Camera, Shield, ShoppingCart,
 } from 'lucide-react';
 import { Modal } from './ui/Modal';
 import { TransactionForm } from './TransactionForm';
 import { ReceiptCapture } from './ReceiptCapture';
+import { InventoryPOS } from './InventoryPOS';
 import { useAccess } from '../context/AccessContext';
 import { Logo } from './ui/Logo';
 import { AIChat } from './AIChat';
@@ -27,6 +28,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { role, isModuleEnabled } = useAccess();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+  const [isPosOpen, setIsPosOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const navigate = useNavigate();
@@ -348,18 +350,32 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         onClose={() => setIsAddModalOpen(false)}
         title="Quick Transaction"
       >
-        <button
-          onClick={() => { setIsAddModalOpen(false); setIsReceiptOpen(true); }}
-          className="w-full mb-4 flex items-center gap-3 px-4 py-3 bg-gold-500/10 hover:bg-gold-500/20 border border-gold-500/30 rounded-xl text-left transition-colors active:scale-[0.99]"
-        >
-          <div className="p-2 bg-gold-500/20 rounded-lg text-gold-400 shrink-0">
-            <Camera size={18} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-gold-300">Snap a receipt instead</p>
-            <p className="text-[11px] text-gray-400">AI reads the vendor, amount and category for you</p>
-          </div>
-        </button>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+          <button
+            onClick={() => { setIsAddModalOpen(false); setIsReceiptOpen(true); }}
+            className="flex items-center gap-3 px-4 py-3 bg-gold-500/10 hover:bg-gold-500/20 border border-gold-500/30 rounded-xl text-left transition-colors active:scale-[0.99]"
+          >
+            <div className="p-2 bg-gold-500/20 rounded-lg text-gold-400 shrink-0">
+              <Camera size={18} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-gold-300">Snap a receipt</p>
+              <p className="text-[11px] text-gray-400">AI reads it for you</p>
+            </div>
+          </button>
+          <button
+            onClick={() => { setIsAddModalOpen(false); setIsPosOpen(true); }}
+            className="flex items-center gap-3 px-4 py-3 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-xl text-left transition-colors active:scale-[0.99]"
+          >
+            <div className="p-2 bg-blue-500/20 rounded-lg text-blue-300 shrink-0">
+              <ShoppingCart size={18} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-blue-300">Inventory POS</p>
+              <p className="text-[11px] text-gray-400">Tap-to-basket stock sales</p>
+            </div>
+          </button>
+        </div>
         <TransactionForm onComplete={() => setIsAddModalOpen(false)} />
       </Modal>
 
@@ -375,6 +391,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       <AIChat />
       <InstallPWA />
       <ReceiptCapture open={isReceiptOpen} onClose={() => setIsReceiptOpen(false)} />
+      <InventoryPOS open={isPosOpen} onClose={() => setIsPosOpen(false)} onDone={() => {}} />
     </div>
   );
 };

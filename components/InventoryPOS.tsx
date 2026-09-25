@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { inventoryService } from '../services/inventory';
 import { InventoryItem, InventorySettings, Transaction } from '../types';
@@ -26,11 +26,14 @@ const genId = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toS
 export const InventoryPOS: React.FC<{
   open: boolean;
   onClose: () => void;
-  items: InventoryItem[];
-  settings: InventorySettings | null;
-  onDone: () => void;
-}> = ({ open, onClose, items, settings, onDone }) => {
+  items?: InventoryItem[];
+  settings?: InventorySettings | null;
+  onDone?: () => void;
+}> = ({ open, onClose, items: itemsProp, settings: settingsProp, onDone }) => {
   const { dispatch, user, state } = useFinance();
+  const [ownItems, setOwnItems] = useState<InventoryItem[]>([]);
+  const [ownSettings, setOwnSettings] = useState<InventorySettings | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [mode, setMode] = useState<'sale' | 'stock'>('sale');
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState<PosLine[]>([]);
@@ -47,6 +50,9 @@ export const InventoryPOS: React.FC<{
       .map(a => ({ id: a.id, label: a.name, subLabel: `${a.code} • Asset`, color: '#D4AF37' }))
   ), [state.accounts]);
 
+  const settings = settingsProp ?? ownSettings;
+  const items = itemsProp ?? ownItems;
+
   const paymentResolved = paymentId || settings?.payment_account_id
     || state.accounts.find(a => a.code === '11110')?.id || paymentOptions[0]?.id || '';
 
@@ -57,9 +63,29 @@ export const InventoryPOS: React.FC<{
     rev: item.revenue_account_id || settings?.revenue_account_id || null,
   });
 
+  // Standalone mode: fetch items + settings when opened without props
+  useEffect(() => {
+    if (!open || itemsProp) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [its, st] = await Promise.all([
+          inventoryService.getItems(user!.id),
+          inventoryService.getSettings(user!.id).catch(() => null),
+        ]);
+        if (cancelled) return;
+        setOwnItems(its);
+        setOwnSettings(st);
+      } catch (e: any) {
+        if (!cancelled) setLoadError(e?.message || 'Failed to load inventory items.');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open, itemsProp, user]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const base = items.filter(i => i.is_active !== false);
+    const base = (itemsProp ?? ownItems).filter(i => i.is_active !== false);
     if (!q) return base;
     return base.filter(i => `${i.name} ${i.sku || ''} ${i.category || ''}`.toLowerCase().includes(q));
   }, [items, search]);
