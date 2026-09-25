@@ -63,7 +63,10 @@ Accounts in the database that are **absent from the screenshot** (confirmed by T
 - **Vantage strategy accounts** (they have a `Strategy ID:` in `notes`): zero them for today —
   insert `balance 0` with note `Zeroed - strategy not on Vantage dashboard screenshot`. Absence
   means the strategy is closed. Flag zeroed accounts loudly in the report; a same-day re-run with
-  a fuller screenshot overwrites today's row back to the real value.
+  a fuller screenshot overwrites today's row back to the real value. Exemption (confirmed
+  2026-09-25): if the app itself already wrote the account's row today (freshly created account,
+  or a deposit/withdrawal auto-adjust), skip and flag instead — a cropped screenshot is not proof
+  of closure.
 - **Non-Vantage accounts** (no Strategy ID in notes — e.g. SHERWOOD, Exness, Binance, V-wallet,
   TradingView): **never zero these.** They never appear on a Vantage dashboard, so absence is
   expected — leave them completely untouched.
