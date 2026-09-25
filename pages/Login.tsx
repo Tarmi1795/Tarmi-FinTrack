@@ -103,6 +103,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         } else {
             if (mode === 'login') onLogin();
             else {
+                // Deterministic onboarding trigger: the wizard gate checks this
+                localStorage.setItem('fintrack_pending_onboarding', '1');
                 alertDialog({ title: 'Account created', message: 'Welcome aboard! Check your email to confirm, then sign in to begin setup.' });
                 setMode('login');
             }

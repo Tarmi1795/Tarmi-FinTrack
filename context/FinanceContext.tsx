@@ -415,7 +415,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             console.log("Loaded user data successfully");
             setSyncStatus('synced');
         } else {
-             setSyncStatus('synced');
+            // No stored data for this user — a brand-new account.
+            setIsNewUser(true);
+            setSyncStatus('synced');
         }
     } catch (e) {
         console.error("Pull execution error:", e);

@@ -4,6 +4,7 @@ import { useFinance } from '../context/FinanceContext';
 import { aiService } from '../services/ai';
 import { buildPresetAccounts, PROFILE_TYPES, ProfileType, OnboardingAnswers } from '../utils/coaPresets';
 import { Account, AppState } from '../types';
+import { DEFAULT_ACCOUNTS } from '../constants';
 import { onboardingFlagKey } from '../utils/onboardingFlags';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -102,11 +103,10 @@ export const OnboardingWizard: React.FC<{ onComplete: () => void }> = ({ onCompl
     setStep(7);
   };
 
-  const applyAndFinish = () => {
-    if (!generated) return;
+  const finishWith = (accounts: Account[]) => {
     const clean: AppState = {
       ...state,
-      accounts: generated,
+      accounts,
       transactions: [],
       parties: [],
       receivables: [],
@@ -118,7 +118,18 @@ export const OnboardingWizard: React.FC<{ onComplete: () => void }> = ({ onCompl
     };
     dispatch({ type: 'SET_STATE', payload: clean });
     if (user) localStorage.setItem(onboardingFlagKey(user.id), 'done');
+    localStorage.removeItem('fintrack_pending_onboarding');
     onComplete();
+  };
+
+  const applyAndFinish = () => {
+    if (!generated) return;
+    finishWith(generated);
+  };
+
+  // "Skip" completes onboarding with the standard chart of accounts
+  const skipToStandard = () => {
+    finishWith(DEFAULT_ACCOUNTS.map(a => ({ ...a })));
   };
 
   const grouped = useMemo(() => {
@@ -351,7 +362,7 @@ export const OnboardingWizard: React.FC<{ onComplete: () => void }> = ({ onCompl
           </button>
 
           {step === 0 && (
-            <button onClick={() => setStep(7)} className="text-xs text-gray-600 hover:text-gray-400 transition-colors">
+            <button onClick={skipToStandard} className="text-xs text-gray-600 hover:text-gray-400 transition-colors">
               Skip — use the standard chart of accounts
             </button>
           )}

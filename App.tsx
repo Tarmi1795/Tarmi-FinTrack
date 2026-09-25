@@ -62,7 +62,7 @@ const AppContent: React.FC = () => {
 
   const showOnboarding = user
     && !!state.businessProfile.baseCurrency
-    && (isNewUser || isPristineSeed(state))
+    && (isNewUser || isPristineSeed(state) || localStorage.getItem('fintrack_pending_onboarding') === '1')
     && localStorage.getItem(onboardingFlagKey(user.id)) !== 'done';
 
   return (
