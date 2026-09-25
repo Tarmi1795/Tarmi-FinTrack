@@ -2,11 +2,12 @@
 import React, { useMemo, useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { usePWA } from '../context/PWAContext';
-import { Wallet, Briefcase, CreditCard, Clock, ChevronDown, ChevronUp, CheckSquare, Square, ArrowDownLeft, ArrowUpRight, ArrowRightLeft, Download, Share, PlusSquare, Monitor, Smartphone, TrendingUp } from 'lucide-react';
-import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval, startOfYear, endOfYear, endOfDay, isAfter } from 'date-fns';
+import { Wallet, Briefcase, CreditCard, Clock, ChevronDown, ChevronUp, CheckSquare, Square, ArrowDownLeft, ArrowUpRight, ArrowRightLeft, Download, Share, PlusSquare, Monitor, Smartphone, TrendingUp, ChevronLeft, ChevronRight, BellRing, X } from 'lucide-react';
+import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval, startOfYear, endOfYear, endOfDay, isAfter, addMonths, addDays, differenceInDays } from 'date-fns';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { Modal } from '../components/ui/Modal';
+import { notifications } from '../utils/notifications';
 
 export const Dashboard: React.FC = () => {
   const { state } = useFinance();
@@ -17,6 +18,20 @@ export const Dashboard: React.FC = () => {
   const [showIOSInstruction, setShowIOSInstruction] = useState(false);
   const [showGenericInstruction, setShowGenericInstruction] = useState(false);
   const [includeDirectCosts, setIncludeDirectCosts] = useState(false);
+
+  // Historical month view (month stepper)
+  const [viewMonth, setViewMonth] = useState(() => new Date());
+  const isCurrentMonth = format(viewMonth, 'yyyy-MM') === format(new Date(), 'yyyy-MM');
+
+  // Due-attention strip state
+  const [dueStripDismissed, setDueStripDismissed] = useState(() => {
+      try {
+          return localStorage.getItem('fintrack_due_strip_dismissed') === format(new Date(), 'yyyy-MM-dd');
+      } catch {
+          return false;
+      }
+  });
+  const [dueNotifEnabled, setDueNotifEnabled] = useState(false);
 
   const currency = state.businessProfile.baseCurrency || 'QAR';
 
@@ -51,10 +66,34 @@ export const Dashboard: React.FC = () => {
       }
   };
 
+  const stepMonth = (delta: number) => {
+      // Normalize to the 1st of the month to avoid day-of-month drift (e.g. Jan 31 -> Feb 28)
+      setViewMonth(prev => addMonths(startOfMonth(prev), delta));
+  };
+
+  const dismissDueStrip = () => {
+      setDueStripDismissed(true);
+      try {
+          localStorage.setItem('fintrack_due_strip_dismissed', format(new Date(), 'yyyy-MM-dd'));
+      } catch {
+          // storage unavailable — dismissal applies to this session only
+      }
+  };
+
+  const handleEnableDueNotifications = async () => {
+      const perm = await notifications.requestPermission();
+      if (perm === 'granted') {
+          await notifications.notifyDueItems(dueAttentionItems);
+          setDueNotifEnabled(true);
+      }
+  };
+
+  // Budget cards stay anchored to the CURRENT month even when viewing history
   const currentMonthKey = format(new Date(), 'yyyy-MM');
   const currentYearKey = format(new Date(), 'yyyy');
-  const monthStart = startOfMonth(new Date());
-  const monthEnd = endOfMonth(new Date());
+  // Month-scoped stats (transactions, business performance, expense chart) follow viewMonth
+  const monthStart = startOfMonth(viewMonth);
+  const monthEnd = endOfMonth(viewMonth);
   const yearStart = startOfYear(new Date());
   const yearEnd = endOfYear(new Date());
   
@@ -65,7 +104,7 @@ export const Dashboard: React.FC = () => {
       const d = parseISO(t.date);
       // Include if in month range AND not in the future (Month-to-Date view)
       return isWithinInterval(d, { start: monthStart, end: monthEnd }) && d <= endOfToday;
-  }), [state.transactions]);
+  }), [state.transactions, viewMonth]);
 
   const txsInYear = useMemo(() => state.transactions.filter(t => {
       const d = parseISO(t.date);
@@ -128,12 +167,49 @@ export const Dashboard: React.FC = () => {
   // Subtract paidAmount for correct outstanding balance
   const totalPayables = pendingPayables.reduce((acc, curr) => acc + (curr.amount - (curr.paidAmount || 0)), 0);
 
+  // --- 2b. Due attention items (overdue or due within the next 7 days) ---
+  const dueAttentionItems = useMemo(() => {
+      const now = new Date();
+      const horizon = addDays(now, 7);
+      return state.receivables
+          .filter(r => r.status === 'pending' && (r.type === 'receivable' || r.type === 'payable'))
+          .map(r => {
+              const due = parseISO(r.dueDate);
+              const outstanding = r.amount - (r.paidAmount || 0);
+              return {
+                  notificationItem: {
+                      party: r.partyName,
+                      amount: outstanding,
+                      currency: r.currency || currency,
+                      daysOverdue: differenceInDays(now, due),
+                      type: r.type,
+                  },
+                  due,
+                  outstanding,
+              };
+          })
+          .filter(x => x.outstanding > 0 && x.due <= horizon)
+          .map(x => x.notificationItem);
+  }, [state.receivables, currency]);
+
+  const overdueDueCount = dueAttentionItems.filter(i => i.daysOverdue > 0).length;
+  const dueThisWeekCount = dueAttentionItems.length - overdueDueCount;
+  const dueReceivablesTotal = dueAttentionItems.filter(i => i.type === 'receivable').reduce((s, i) => s + i.amount, 0);
+  const duePayablesTotal = dueAttentionItems.filter(i => i.type === 'payable').reduce((s, i) => s + i.amount, 0);
+
   // --- 3. Budget & Profit ---
+  // Budget card is ALWAYS anchored to the current month, even when viewing a historical month.
   const budgetObjMonth = state.monthlyBudgets?.find(b => b.monthKey === currentMonthKey);
   const currentMonthBudget = budgetObjMonth?.limit || 0;
   const visibleCatIdsMonth = budgetObjMonth?.visibleAccountIds || [];
-  const totalExpensesMonth = txsInMonth
-    .filter(t => t.type === 'expense' && (budgetObjMonth ? visibleCatIdsMonth.includes(t.accountId) : true))
+  const totalExpensesMonth = state.transactions
+    .filter(t => {
+        const d = parseISO(t.date);
+        return t.type === 'expense'
+            && isWithinInterval(d, { start: startOfMonth(new Date()), end: endOfMonth(new Date()) })
+            && d <= endOfToday
+            && (budgetObjMonth ? visibleCatIdsMonth.includes(t.accountId) : true);
+    })
     .reduce((s, t) => s + t.amount, 0);
   const budgetProgressMonth = currentMonthBudget > 0 ? (totalExpensesMonth / currentMonthBudget) * 100 : 0;
 
@@ -239,10 +315,31 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-4 md:space-y-6 animate-slide-up">
-      <div className="flex justify-between items-end">
-          <div>
-            <h1 className="text-xl md:text-3xl font-bold text-white tracking-tight">Dashboard</h1>
-            <p className="text-gray-400 text-sm">{format(new Date(), 'MMMM yyyy')}</p>
+      <div className="flex flex-wrap justify-between items-end gap-2">
+          <div className="flex items-end gap-1 sm:gap-2">
+              <div>
+                <h1 className="text-xl md:text-3xl font-bold text-white tracking-tight">Dashboard</h1>
+                <p className="text-gray-400 text-sm">{format(viewMonth, 'MMMM yyyy')}</p>
+              </div>
+              {/* MONTH STEPPER (historical view) */}
+              <div className="flex items-center gap-0.5">
+                  <button
+                      onClick={() => stepMonth(-1)}
+                      className="p-2 rounded-lg hover:bg-gray-800 text-gray-400 active:scale-90 transition-transform"
+                      aria-label="Previous month"
+                  >
+                      <ChevronLeft size={18} />
+                  </button>
+                  <span className="text-xs sm:text-sm font-bold text-gray-300 w-24 sm:w-28 text-center whitespace-nowrap select-none">{format(viewMonth, 'MMMM yyyy')}</span>
+                  <button
+                      onClick={() => stepMonth(1)}
+                      className="p-2 rounded-lg hover:bg-gray-800 text-gray-400 active:scale-90 transition-transform disabled:opacity-30 disabled:cursor-not-allowed"
+                      aria-label="Next month"
+                      disabled={isCurrentMonth}
+                  >
+                      <ChevronRight size={18} />
+                  </button>
+              </div>
           </div>
           {/* SMALL INSTALL BUTTON IN HEADER */}
           {isInstallable && (
@@ -256,6 +353,47 @@ export const Dashboard: React.FC = () => {
               </button>
           )}
       </div>
+
+      {/* --- DUE ATTENTION STRIP (overdue / due within 7 days) --- */}
+      {dueAttentionItems.length > 0 && !dueStripDismissed && (
+          <div className="glass-card p-3.5 flex items-center gap-3 border-amber-500/30">
+              <BellRing size={18} className="text-amber-500 shrink-0" />
+              <p className="flex-1 min-w-0 text-sm text-gray-300">
+                  <b className="text-amber-400">{overdueDueCount} overdue</b>
+                  <span className="text-gray-500"> · </span>
+                  <b className="text-white">{dueThisWeekCount} due this week</b>
+                  <span className="text-gray-500"> · </span>
+                  <span className="text-gray-400">
+                      Receivables {currency} {dueReceivablesTotal.toLocaleString()} · Payables {currency} {duePayablesTotal.toLocaleString()}
+                  </span>
+              </p>
+              {dueNotifEnabled ? (
+                  <span className="text-xs font-bold text-emerald-400 shrink-0">Enabled</span>
+              ) : (
+                  <button
+                      onClick={handleEnableDueNotifications}
+                      className="p-2 rounded-lg hover:bg-gray-800 text-amber-400 active:scale-90 transition-transform shrink-0"
+                      aria-label="Enable due-date notifications"
+                      title="Enable due-date notifications"
+                  >
+                      <BellRing size={16} />
+                  </button>
+              )}
+              <button
+                  onClick={() => navigate('/apar')}
+                  className="px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold shrink-0 transition-colors"
+              >
+                  Review
+              </button>
+              <button
+                  onClick={dismissDueStrip}
+                  className="p-2 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-gray-300 active:scale-90 transition-transform shrink-0"
+                  aria-label="Dismiss due items"
+              >
+                  <X size={16} />
+              </button>
+          </div>
+      )}
 
       {/* --- ROW 1: CASH & PROFIT --- */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

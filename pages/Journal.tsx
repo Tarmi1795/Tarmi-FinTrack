@@ -5,6 +5,8 @@ import { format, parseISO } from 'date-fns';
 import { Search, Trash2, Pencil, Calendar, Tag, CreditCard } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
 import { TransactionForm } from '../components/TransactionForm';
+import { SwipeActions } from '../components/ui/SwipeActions';
+import { confirmDialog } from '../components/ui/ConfirmDialog';
 import { Transaction } from '../types';
 import { useLocation } from 'react-router-dom';
 
@@ -34,8 +36,14 @@ export const Journal: React.FC = () => {
     });
   }, [state.transactions, state.accounts, searchTerm]);
 
-  const handleDelete = (id: string) => {
-      if (window.confirm('Are you sure you want to delete this transaction? This action cannot be undone.')) {
+  const handleDelete = async (id: string) => {
+      const confirmed = await confirmDialog({
+          title: 'Delete this transaction?',
+          message: 'This action cannot be undone.',
+          confirmLabel: 'Delete',
+          danger: true,
+      });
+      if (confirmed) {
           dispatch({ type: 'DELETE_TRANSACTION', payload: id });
       }
   };
@@ -124,7 +132,15 @@ export const Journal: React.FC = () => {
         {filteredTransactions.map(t => {
           const acc = state.accounts.find(c => c.id === t.accountId);
           return (
-            <div key={t.id} className="glass-card p-3.5 rounded-xl border border-white/5 flex flex-col gap-2.5">
+            <SwipeActions
+              key={t.id}
+              className="rounded-xl"
+              actions={[
+                { icon: <Pencil size={16} />, label: 'Edit', className: 'bg-blue-600/90 text-white', onClick: () => setEditingTx(t) },
+                { icon: <Trash2 size={16} />, label: 'Delete', className: 'bg-red-600/90 text-white', onClick: () => handleDelete(t.id) },
+              ]}
+            >
+            <div className="glass-card p-3.5 rounded-xl border border-white/5 flex flex-col gap-2.5">
               <div className="flex justify-between items-start gap-3">
                 <div className="flex flex-col min-w-0">
                   <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1 flex items-center gap-1.5">
@@ -158,6 +174,7 @@ export const Journal: React.FC = () => {
                 </button>
               </div>
             </div>
+            </SwipeActions>
           );
         })}
       </div>

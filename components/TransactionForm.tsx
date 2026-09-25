@@ -16,6 +16,7 @@ interface TransactionFormProps {
   mode?: 'transaction' | 'template';
   onSaveTemplate?: (template: TransactionTemplate) => void;
   initialTemplate?: TransactionTemplate | null;
+  aiPrefill?: { amount?: string; note?: string; accountId?: string } | null;
 }
 
 export const TransactionForm: React.FC<TransactionFormProps> = ({ 
@@ -24,7 +25,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     initialData, 
     mode = 'transaction',
     onSaveTemplate,
-    initialTemplate
+    initialTemplate,
+    aiPrefill
 }) => {
   const { state, dispatch } = useFinance();
   const navigate = useNavigate();
@@ -50,18 +52,18 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [type, setType] = useState<TransactionType>(initialData?.type || initialType);
   const [amount, setAmount] = useState(
       initialData ? (initialData.originalAmount || initialData.amount).toString() : 
-      (initialTemplate ? (initialTemplate.amount || '').toString() : '')
+      (aiPrefill?.amount || (initialTemplate ? (initialTemplate.amount || '').toString() : ''))
   );
   
   // Default currency to Base Currency if not provided
   const [currency, setCurrency] = useState<CurrencyCode>(initialData?.currency || initialTemplate?.currency || baseCurrency);
   
-  const [accountId, setAccountId] = useState(initialData?.accountId || initialTemplate?.accountId || '');
+  const [accountId, setAccountId] = useState(initialData?.accountId || aiPrefill?.accountId || initialTemplate?.accountId || '');
   const [source, setSource] = useState<SourceType>(initialData?.source || initialTemplate?.source || 'personal');
   const [paymentAccountId, setPaymentAccountId] = useState(initialData?.paymentAccountId || initialTemplate?.paymentAccountId || '');
   // Fix: Use local date for default to avoid timezone shift errors
   const [date, setDate] = useState(initialData ? initialData.date.split('T')[0] : getTodayLocal());
-  const [note, setNote] = useState(initialData?.note || initialTemplate?.note || '');
+  const [note, setNote] = useState(initialData?.note || aiPrefill?.note || initialTemplate?.note || '');
   const [partyId, setPartyId] = useState(initialData?.relatedPartyId || initialTemplate?.partyId || '');
   
   // Recurrence State (Transaction Mode Only)

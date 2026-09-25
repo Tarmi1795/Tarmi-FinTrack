@@ -315,3 +315,66 @@ export interface InventorySettings {
   payment_account_id?: string | null;   // Default bank/cash — Cr on purchase, Dr on sale
   updated_at?: string;
 }
+
+// --- INVOICING MODULE (mirrors Supabase table public.invoices directly) ---
+
+export interface InvoiceLine {
+  description: string;
+  quantity: number;
+  unit_price: number;
+}
+
+export interface Invoice {
+  id: string;
+  user_id?: string;
+  invoice_no: string;
+  status: 'quote' | 'sent' | 'partial' | 'paid' | 'void';
+  party_id?: string | null;
+  party_name: string;
+  issue_date: string;   // YYYY-MM-DD
+  due_date: string;     // YYYY-MM-DD
+  currency: string;     // 'QAR' | 'PHP'
+  lines: InvoiceLine[];
+  tax_pct?: number;
+  discount?: number;
+  notes?: string;
+  gl_receivable_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// --- SAVINGS GOALS MODULE (mirrors Supabase tables directly) ---
+
+export interface SavingsGoal {
+  id: string;
+  user_id?: string;
+  name: string;
+  target_amount: number;
+  target_date?: string | null; // YYYY-MM-DD
+  gl_account_id?: string | null; // Asset sub-account created for this goal
+  is_archived: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+export interface GoalMovement {
+  id: string;
+  user_id?: string;
+  goal_id: string;
+  direction: 'in' | 'out';
+  amount: number;
+  flow_date: string;
+  gl_transaction_id?: string | null;
+  note?: string;
+  created_at?: string;
+}
+
+// --- RECEIPT CAPTURE MODULE (mirrors Supabase table public.receipts directly) ---
+
+export interface ReceiptAttachment {
+  id: string;
+  user_id?: string;
+  transaction_id: string;
+  storage_path: string;
+  extracted?: Record<string, any> | null;
+  created_at?: string;
+}

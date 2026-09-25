@@ -7,6 +7,8 @@ import { format, isPast, addDays, addWeeks, addMonths, addYears, parseISO, endOf
 import { Plus, CheckCircle, ArrowUpRight, ArrowDownLeft, Repeat, Pencil, Trash2, HandCoins, FileText, Filter, Copy, RefreshCw, Users, Info } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
 import { SearchableSelect } from '../components/ui/SearchableSelect';
+import { SwipeActions } from '../components/ui/SwipeActions';
+import { confirmDialog } from '../components/ui/ConfirmDialog';
 import { evaluateMathExpression } from '../utils/mathUtils';
 import { InvoiceModal } from '../components/InvoiceModal';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -336,9 +338,12 @@ export const ApAr: React.FC = () => {
       dispatch({ type: 'ADD_TRANSACTION', payload: tx });
   };
 
-  const handleSync = () => {
-      const confirmSync = confirm("Reconcile Transactions?\n\nThis will scan all active Payables/Receivables and create missing GL transactions if they were accidentally deleted.");
-      if (!confirmSync) return;
+  const handleSync = async () => {
+      const confirmed = await confirmDialog({
+          title: 'Reconcile Transactions?',
+          message: 'This will scan all active Payables/Receivables and create missing GL transactions if they were accidentally deleted.',
+      });
+      if (!confirmed) return;
 
       let createdCount = 0;
       state.receivables.forEach(r => {
@@ -352,9 +357,15 @@ export const ApAr: React.FC = () => {
       alert(createdCount > 0 ? `Synced! Created ${createdCount} missing transactions.` : "All records are in sync.");
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
       const item = state.receivables.find(r => r.id === id);
-      if(confirm("Delete this record? Associated Journal Entries and Recurring rules will be removed.")) {
+      const confirmed = await confirmDialog({
+          title: 'Delete this record?',
+          message: 'Associated Journal Entries and Recurring rules will be removed.',
+          confirmLabel: 'Delete',
+          danger: true,
+      });
+      if (confirmed) {
           dispatch({ type: 'DELETE_RECEIVABLE', payload: id });
           if (item?.recurring?.ruleId) {
              dispatch({ type: 'DELETE_RECURRING', payload: item.recurring.ruleId });
@@ -563,7 +574,16 @@ export const ApAr: React.FC = () => {
                 const remaining = item.amount - (item.paidAmount || 0);
 
                 return (
-                    <div key={item.id} className={`glass-panel p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 group hover:bg-gray-800/60 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 ${isFutureItem ? 'opacity-60 grayscale-[0.5]' : ''}`}>
+                    <SwipeActions
+                        key={item.id}
+                        className="rounded-xl"
+                        actions={[
+                            { icon: <CheckCircle size={16} />, label: 'Settle', className: 'bg-emerald-600/90 text-white', onClick: () => handleOpenPayment(item) },
+                            { icon: <Pencil size={16} />, label: 'Edit', className: 'bg-blue-600/90 text-white', onClick: () => handleOpenEdit(item) },
+                            { icon: <Trash2 size={16} />, label: 'Delete', className: 'bg-red-600/90 text-white', onClick: () => handleDelete(item.id) },
+                        ]}
+                    >
+                    <div className={`glass-panel p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 group hover:bg-gray-800/60 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 ${isFutureItem ? 'opacity-60 grayscale-[0.5]' : ''}`}>
                         <div className="flex items-start gap-3 min-w-0">
                              <div className={`p-2.5 rounded-xl shrink-0 ${bgClass} ${colorClass}`}>{icon}</div>
                              <div className="min-w-0">
@@ -596,6 +616,7 @@ export const ApAr: React.FC = () => {
                              </div>
                         </div>
                     </div>
+                    </SwipeActions>
                 );
             })}
             {filteredList.length === 0 && <div className="text-center py-12 text-gray-500 border border-dashed border-gray-800 rounded-xl">No active records found.</div>}

@@ -1,16 +1,40 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { format, startOfMonth, endOfMonth, parseISO, isWithinInterval, isPast } from 'date-fns';
-import { Calendar, FileText, Scale, Users, Download, Activity, Table, ScrollText, ArrowRightLeft, FileSpreadsheet, Camera, Printer, ChevronDown, ChevronRight } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, subDays, addDays, addWeeks, addMonths, addYears, endOfDay, parseISO, isWithinInterval, isPast } from 'date-fns';
+import { Calendar, FileText, Scale, Users, Download, Activity, Table, ScrollText, ArrowRightLeft, FileSpreadsheet, Camera, Printer, ChevronDown, ChevronRight, TrendingUp } from 'lucide-react';
 import { StatementOfAccount } from '../components/StatementOfAccount';
-import { buildAccountTree, AccountNode } from '../utils/accountHierarchy';
+import { buildAccountTree, AccountNode, calculateDirectBalance } from '../utils/accountHierarchy';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from 'recharts';
 import { Transaction, AccountClass } from '../types';
 import { useLocation } from 'react-router-dom';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 
-type ReportTab = 'income_statement' | 'balance_sheet' | 'cash_flow' | 'trial_balance' | 'soa';
+type ReportTab = 'income_statement' | 'balance_sheet' | 'cash_flow' | 'trial_balance' | 'soa' | 'forecast';
+
+// --- DATE RANGE PRESETS ---
+type DatePreset = 'This Month' | 'Last Month' | 'Last 30 Days' | 'YTD' | 'This Year' | 'Custom';
+const DATE_PRESETS: DatePreset[] = ['This Month', 'Last Month', 'Last 30 Days', 'YTD', 'This Year', 'Custom'];
+
+const computePresetRange = (preset: DatePreset): { start: string; end: string } => {
+  const now = new Date();
+  switch (preset) {
+    case 'Last Month': {
+      const prevMonth = subMonths(now, 1);
+      return { start: format(startOfMonth(prevMonth), 'yyyy-MM-dd'), end: format(endOfMonth(prevMonth), 'yyyy-MM-dd') };
+    }
+    case 'Last 30 Days':
+      return { start: format(subDays(now, 29), 'yyyy-MM-dd'), end: format(now, 'yyyy-MM-dd') };
+    case 'YTD':
+      return { start: format(startOfYear(now), 'yyyy-MM-dd'), end: format(now, 'yyyy-MM-dd') };
+    case 'This Year':
+      return { start: format(startOfYear(now), 'yyyy-MM-dd'), end: format(endOfYear(now), 'yyyy-MM-dd') };
+    case 'This Month':
+    default:
+      return { start: format(startOfMonth(now), 'yyyy-MM-dd'), end: format(now, 'yyyy-MM-dd') };
+  }
+};
 
 const formatCurrency = (amount: number) => {
   return amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -113,12 +137,17 @@ export const Reports: React.FC = () => {
   const { state } = useFinance();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<ReportTab>('income_statement');
+  const [activePreset, setActivePreset] = useState<DatePreset>('This Month');
   const [initialSoaAccount, setInitialSoaAccount] = useState<string>('');
   
-  const [dateRange, setDateRange] = useState({
-    start: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
-    end: format(endOfMonth(new Date()), 'yyyy-MM-dd')
-  });
+  const [dateRange, setDateRange] = useState(() => computePresetRange('This Month'));
+
+  const handlePresetClick = (preset: DatePreset) => {
+    setActivePreset(preset);
+    if (preset !== 'Custom') {
+      setDateRange(computePresetRange(preset));
+    }
+  };
 
   // Handle incoming shortcuts from other pages
   useEffect(() => {
@@ -330,8 +359,86 @@ export const Reports: React.FC = () => {
       return { groups, totalDebit, totalCredit };
   }, [state.accounts, state.transactions, dateRange.end]);
 
+  // 5. Forecast (90-Day Cash Projection)
+  const forecast = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = endOfDay(todayStart);
+    const tomorrow = addDays(todayStart, 1);
+    const horizonEnd = addDays(tomorrow, 89); // Day 90 of the window
+
+    // Starting cash: posting accounts 111* (Cash & Cash Equivalents), balance up to end of today
+    const cashAccounts = state.accounts.filter(a => a.isPosting && a.code.startsWith('111'));
+    const txUpToToday = state.transactions.filter(t => parseISO(t.date) <= todayEnd);
+    const startingCash = cashAccounts.reduce((sum, acc) => sum + calculateDirectBalance(acc.id, txUpToToday, 'debit'), 0);
+
+    const dailyNet: Record<string, number> = {};
+    let totalInflow = 0;
+    let totalOutflow = 0;
+    const addEvent = (date: Date, amount: number) => {
+      if (!amount) return;
+      const key = format(date, 'yyyy-MM-dd');
+      dailyNet[key] = (dailyNet[key] || 0) + amount;
+      if (amount > 0) totalInflow += amount; else totalOutflow += Math.abs(amount);
+    };
+
+    // Active recurring rules (direct transaction generators only, not receivable generators)
+    state.recurring.forEach(rule => {
+      if (!rule.active || rule.generationType === 'receivable') return;
+      if (rule.type !== 'income' && rule.type !== 'expense') return;
+      const signed = rule.type === 'income' ? rule.amount : -rule.amount;
+      const step = (d: Date): Date =>
+        rule.frequency === 'weekly' ? addWeeks(d, 1) :
+        rule.frequency === 'monthly' ? addMonths(d, 1) :
+        rule.frequency === 'yearly' ? addYears(d, 1) :
+        addDays(d, 1);
+      let cursor = parseISO(rule.nextDueDate);
+      if (!(cursor > tomorrow)) cursor = tomorrow; // max(nextDueDate, tomorrow), Invalid-Date safe
+      let iterations = 0;
+      while (cursor <= horizonEnd && iterations < 200) {
+        addEvent(cursor, signed);
+        cursor = step(cursor);
+        iterations++;
+      }
+    });
+
+    // Pending receivables / payables on their due dates
+    state.receivables.forEach(r => {
+      if (r.status === 'paid') return;
+      if (r.type !== 'receivable' && r.type !== 'payable') return;
+      const due = parseISO(r.dueDate);
+      if (due < tomorrow || due > horizonEnd) return;
+      const outstanding = r.amount - (r.paidAmount || 0);
+      if (outstanding <= 0) return;
+      addEvent(due, r.type === 'receivable' ? outstanding : -outstanding);
+    });
+
+    // Cumulative projection, days 1..90 (day 1 = tomorrow)
+    const series: { date: string; projected: number }[] = [];
+    let running = startingCash;
+    for (let i = 0; i < 90; i++) {
+      const day = addDays(tomorrow, i);
+      running += dailyNet[format(day, 'yyyy-MM-dd')] || 0;
+      series.push({ date: format(day, 'yyyy-MM-dd'), projected: running });
+    }
+
+    const lowestPoint = series.reduce((min, p) => (p.projected < min.projected ? p : min), series[0]);
+
+    return {
+      series,
+      startingCash,
+      endBalance: running,
+      lowestPoint,
+      totalInflow,
+      totalOutflow,
+      startDate: tomorrow,
+      endDate: horizonEnd
+    };
+  }, [state.accounts, state.transactions, state.recurring, state.receivables]);
+
   // --- UTILS & HANDLERS ---
 
+  const currency = state.businessProfile.baseCurrency || 'QAR';
   const getNodeTotal = (nodes: AccountNode[]) => nodes.reduce((s, n) => s + n.totalBalance, 0);
   const totalAssets = getNodeTotal(balanceSheetTree['Assets']);
   const totalLiabilities = getNodeTotal(balanceSheetTree['Liabilities']);
@@ -440,7 +547,7 @@ export const Reports: React.FC = () => {
     <div className="space-y-4 md:space-y-6 animate-fade-in">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-3 no-print">
             <div><h1 className="text-xl md:text-3xl font-bold text-white tracking-tight">Financial Reports</h1></div>
-            {activeTab !== 'soa' && (
+            {activeTab !== 'soa' && activePreset === 'Custom' && (
                 <div className="flex items-center gap-1 bg-gray-900 p-1 rounded-xl border border-gray-700 w-full md:w-auto">
                     <input type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({...prev, start: e.target.value}))} className="bg-transparent text-white text-sm px-2 py-2 outline-none flex-1 min-w-0" />
                     <span className="text-gray-500 text-sm">→</span>
@@ -449,21 +556,37 @@ export const Reports: React.FC = () => {
             )}
         </div>
 
+        {/* --- DATE PRESET CHIPS (Non-SOA tabs) --- */}
+        {activeTab !== 'soa' && (
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 no-print">
+                {DATE_PRESETS.map(preset => (
+                    <button
+                        key={preset}
+                        onClick={() => handlePresetClick(preset)}
+                        className={`px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap ${activePreset === preset ? 'bg-primary text-white' : 'bg-gray-800 text-gray-400'}`}
+                    >
+                        {preset}
+                    </button>
+                ))}
+            </div>
+        )}
+
         <div className="tab-scroll md:overflow-visible pb-1 no-print">
-            {['income_statement', 'balance_sheet', 'cash_flow', 'trial_balance', 'soa'].map(t => (
+            {['income_statement', 'balance_sheet', 'cash_flow', 'trial_balance', 'soa', 'forecast'].map(t => (
                 <button
                     key={t}
                     onClick={() => setActiveTab(t as ReportTab)}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap ${activeTab === t ? 'bg-primary text-white' : 'bg-gray-800 text-gray-400'}`}
                 >
                     {t === 'trial_balance' && <Table size={14}/>}
+                    {t === 'forecast' && <TrendingUp size={14}/>}
                     {t === 'soa' ? 'SOA' : t.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
                 </button>
             ))}
         </div>
 
         {/* --- GLOBAL EXPORT BUTTON (Only for non-SOA tabs, SOA has its own control) --- */}
-        {activeTab !== 'soa' && (
+        {activeTab !== 'soa' && activeTab !== 'forecast' && (
             <div className="flex justify-end no-print">
                 <button
                     onClick={handleExcelExport}
@@ -528,7 +651,92 @@ export const Reports: React.FC = () => {
 
         {activeTab === 'soa' ? <StatementOfAccount appState={state} initialAccountId={initialSoaAccount} /> : null}
 
-        {activeTab !== 'soa' && activeTab !== 'trial_balance' && (
+        {/* --- FORECAST (Dark theme) --- */}
+        {activeTab === 'forecast' && (
+            <div className="glass-card p-4 md:p-6 rounded-2xl space-y-6">
+                <div>
+                    <h3 className="text-lg font-bold text-white">90-Day Cash Forecast</h3>
+                    <p className="text-xs text-gray-400 mt-1">
+                        {format(forecast.startDate, 'dd MMM yyyy')} → {format(forecast.endDate, 'dd MMM yyyy')} · Starting Cash: {currency} {formatCurrency(forecast.startingCash)}
+                    </p>
+                </div>
+
+                {/* Summary Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="bg-gray-900/70 border border-gray-800 rounded-xl p-3 md:p-4">
+                        <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Projected End Balance</p>
+                        <p className={`text-base md:text-lg font-bold mt-1 ${forecast.endBalance < 0 ? 'text-red-400' : 'text-white'}`}>
+                            {currency} {formatCurrency(forecast.endBalance)}
+                        </p>
+                        <p className="text-[10px] text-gray-500 mt-1">Day 90</p>
+                    </div>
+                    <div className="bg-gray-900/70 border border-gray-800 rounded-xl p-3 md:p-4">
+                        <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Lowest Point</p>
+                        <p className={`text-base md:text-lg font-bold mt-1 ${forecast.lowestPoint.projected < 0 ? 'text-red-400' : 'text-white'}`}>
+                            {currency} {formatCurrency(forecast.lowestPoint.projected)}
+                        </p>
+                        <p className="text-[10px] text-gray-500 mt-1">On {format(parseISO(forecast.lowestPoint.date), 'dd MMM')}</p>
+                    </div>
+                    <div className="bg-gray-900/70 border border-gray-800 rounded-xl p-3 md:p-4">
+                        <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Inflows (90d)</p>
+                        <p className="text-base md:text-lg font-bold mt-1 text-emerald-400">
+                            {currency} {formatCurrency(forecast.totalInflow)}
+                        </p>
+                    </div>
+                    <div className="bg-gray-900/70 border border-gray-800 rounded-xl p-3 md:p-4">
+                        <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Outflows (90d)</p>
+                        <p className="text-base md:text-lg font-bold mt-1 text-red-400">
+                            {currency} {formatCurrency(forecast.totalOutflow)}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Projection Chart */}
+                <div style={{ width: '100%', height: 260 }}>
+                    <ResponsiveContainer>
+                        <AreaChart data={forecast.series} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
+                            <defs>
+                                <linearGradient id="fcGold" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="rgba(212,175,55,0.35)" />
+                                    <stop offset="100%" stopColor="rgba(212,175,55,0)" />
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                            <XAxis
+                                dataKey="date"
+                                tickFormatter={(v: string) => format(parseISO(v), 'dd MMM')}
+                                tick={{ fontSize: 10, fill: '#a1a1aa' }}
+                                stroke="#3f3f46"
+                                minTickGap={24}
+                            />
+                            <YAxis
+                                width={56}
+                                tick={{ fontSize: 10, fill: '#a1a1aa' }}
+                                stroke="#3f3f46"
+                                tickFormatter={(v: number) => (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : `${v}`)}
+                            />
+                            <Tooltip
+                                contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 }}
+                                labelStyle={{ color: '#e4e4e7', fontWeight: 600 }}
+                                itemStyle={{ color: '#D4AF37' }}
+                                formatter={(v: number) => [`${currency} ${formatCurrency(v)}`, 'Projected Cash']}
+                                labelFormatter={(d: string) => format(parseISO(d), 'dd MMM yyyy')}
+                            />
+                            <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="4 4" />
+                            <Area type="monotone" dataKey="projected" stroke="#D4AF37" strokeWidth={2} fill="url(#fcGold)" name="Projected Cash" />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                </div>
+
+                {/* Assumptions */}
+                <p className="text-xs text-gray-500 leading-relaxed">
+                    <span className="font-bold text-gray-400">Assumptions: </span>
+                    Includes active recurring rules, pending receivables/payables on their due dates. Does not project ordinary daily spending.
+                </p>
+            </div>
+        )}
+
+        {activeTab !== 'soa' && activeTab !== 'trial_balance' && activeTab !== 'forecast' && (
             <div className="glass-card bg-white text-black p-4 md:p-8 rounded-2xl min-h-[600px] shadow-xl">
                 <div className="text-center mb-8 border-b border-gray-200 pb-6">
                     <h2 className="text-2xl font-bold text-gray-900 uppercase">{state.businessProfile.name}</h2>

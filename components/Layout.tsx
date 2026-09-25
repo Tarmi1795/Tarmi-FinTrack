@@ -3,24 +3,34 @@ import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Plus, PieChart, Settings as SettingsIcon, ArrowRightLeft, Monitor,
-  BookOpen, LogOut, Target, Calculator, CandlestickChart, Package, Menu, X,
+  BookOpen, LogOut, Target, Calculator, CandlestickChart, Package, Menu, X, Search,
+  FileText, PiggyBank, Camera,
 } from 'lucide-react';
 import { Modal } from './ui/Modal';
 import { TransactionForm } from './TransactionForm';
+import { ReceiptCapture } from './ReceiptCapture';
 import { Logo } from './ui/Logo';
 import { AIChat } from './AIChat';
 import { InstallPWA } from './InstallPWA';
+import { CommandPalette } from './CommandPalette';
 import { useFinance } from '../context/FinanceContext';
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
+interface NavItemDef { icon: React.ElementType; label: string; to: string; badge?: number; }
+
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { authMethods } = useFinance();
+  const { authMethods, state } = useFinance();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const navigate = useNavigate();
+
+  // Overdue AP/AR count (pending receivables past their due date)
+  const overdueCount = state.receivables.filter(r => r.status === 'pending' && new Date(r.dueDate) < new Date()).length;
 
   const handleLogout = async () => {
       try {
@@ -40,6 +50,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             return;
         }
 
+        // 1b. Command Palette (Ctrl + K or Cmd + K)
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+            e.preventDefault();
+            setIsPaletteOpen(true);
+            return;
+        }
+
         // 2. Quick Add (NumpadAdd or +)
         // Ensure we are not inside an input field
         const activeTag = document.activeElement?.tagName.toLowerCase();
@@ -52,6 +69,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                     setIsAddModalOpen(true);
                 }
             }
+
+            // 3. Command Palette (plain '/')
+            if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                e.preventDefault();
+                setIsPaletteOpen(true);
+            }
         }
     };
 
@@ -60,16 +83,18 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   }, [isAddModalOpen, navigate]);
 
   // Desktop sidebar navigation (all destinations)
-  const navItems = [
+  const navItems: NavItemDef[] = [
     { icon: LayoutDashboard, label: 'Dashboard', to: '/' },
     { icon: Target, label: 'Budget', to: '/budget' },
-    { icon: ArrowRightLeft, label: 'AP / AR', to: '/apar' },
+    { icon: ArrowRightLeft, label: 'AP / AR', to: '/apar', badge: overdueCount },
+    { icon: FileText, label: 'Invoices', to: '/invoices' },
     { icon: Monitor, label: 'Assets', to: '/assets' },
     { icon: BookOpen, label: 'Journal', to: '/journal' },
     { icon: PieChart, label: 'Reports', to: '/reports' },
     { icon: Calculator, label: 'Money Counter', to: '/money-counter' },
     { icon: CandlestickChart, label: 'Trading', to: '/trading' },
     { icon: Package, label: 'Inventory', to: '/inventory' },
+    { icon: PiggyBank, label: 'Goals', to: '/goals' },
     { icon: SettingsIcon, label: 'Settings', to: '/settings' },
   ];
 
@@ -81,12 +106,14 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   ];
 
   // Secondary destinations shown in the mobile "More" sheet
-  const moreNavItems = [
+  const moreNavItems: NavItemDef[] = [
     { icon: Target, label: 'Budget', to: '/budget' },
-    { icon: ArrowRightLeft, label: 'AP / AR', to: '/apar' },
+    { icon: ArrowRightLeft, label: 'AP / AR', to: '/apar', badge: overdueCount },
+    { icon: FileText, label: 'Invoices', to: '/invoices' },
     { icon: Monitor, label: 'Assets', to: '/assets' },
     { icon: CandlestickChart, label: 'Trading', to: '/trading' },
     { icon: Package, label: 'Inventory', to: '/inventory' },
+    { icon: PiggyBank, label: 'Goals', to: '/goals' },
     { icon: Calculator, label: 'Money Counter', to: '/money-counter' },
     { icon: SettingsIcon, label: 'Settings', to: '/settings' },
   ];
@@ -110,13 +137,22 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           <Logo className="w-7 h-7" showText={false} />
           <span className="font-bold text-base tracking-tight text-white">Tarmi <span className="text-gold-500">Pro</span></span>
         </div>
-        <button
-          onClick={() => setIsMoreOpen(true)}
-          aria-label="More navigation"
-          className="p-2.5 -mr-2 text-gray-400 hover:text-white rounded-lg active:bg-gray-800 transition-colors"
-        >
-          <Menu size={20} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setIsPaletteOpen(true)}
+            aria-label="Search (command palette)"
+            className="p-2.5 text-gray-400 hover:text-white rounded-lg active:bg-gray-800 transition-colors"
+          >
+            <Search size={20} />
+          </button>
+          <button
+            onClick={() => setIsMoreOpen(true)}
+            aria-label="More navigation"
+            className="p-2.5 -mr-2 text-gray-400 hover:text-white rounded-lg active:bg-gray-800 transition-colors"
+          >
+            <Menu size={20} />
+          </button>
+        </div>
       </header>
 
       {/* Sidebar (desktop) */}
@@ -131,6 +167,21 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
           </div>
           <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/5 rounded-full blur-3xl pointer-events-none group-hover:bg-gold-500/10 transition-colors duration-500"></div>
+        </div>
+
+        {/* Command palette trigger (fake search input) */}
+        <div className="px-4 pt-4 pb-1">
+          <button
+            onClick={() => setIsPaletteOpen(true)}
+            aria-label="Open command palette"
+            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-gray-900/60 border border-gray-800 text-gray-500 text-sm hover:border-gray-700 hover:text-gray-400 transition-colors"
+          >
+            <Search size={15} />
+            <span>Search…</span>
+            <kbd className="ml-auto text-[10px] font-mono px-1.5 py-0.5 rounded border border-gray-700 bg-gray-800 text-gray-500">
+              Ctrl K
+            </kbd>
+          </button>
         </div>
 
         <nav className="flex-1 px-4 space-y-1 py-4 overflow-y-auto no-scrollbar">
@@ -148,7 +199,14 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             >
               {({ isActive }) => (
                 <>
-                  <item.icon size={18} className={`${isActive ? 'text-gold-500' : 'group-hover:text-gold-500/70'} transition-colors duration-300`} />
+                  <span className="relative shrink-0">
+                    <item.icon size={18} className={`${isActive ? 'text-gold-500' : 'group-hover:text-gold-500/70'} transition-colors duration-300`} />
+                    {!!item.badge && item.badge > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">
+                        {item.badge}
+                      </span>
+                    )}
+                  </span>
                   <span className="relative z-10 text-sm">{item.label}</span>
                 </>
               )}
@@ -164,6 +222,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           >
             <Plus size={20} />
             Quick Add
+          </button>
+          <button
+            onClick={() => setIsReceiptOpen(true)}
+            className="w-full flex items-center justify-center gap-2 bg-gray-900 hover:bg-gray-800 text-gray-300 hover:text-gold-400 py-2.5 rounded-xl text-sm font-medium transition-colors border border-gray-800 active:scale-95"
+          >
+            <Camera size={15} />
+            Snap Receipt
           </button>
           <button
             onClick={handleLogout}
@@ -246,10 +311,22 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   className="w-full flex items-center gap-4 px-3 py-3.5 rounded-xl text-sm font-medium text-gray-300 active:bg-gray-800 transition-colors"
                 >
                   <item.icon size={20} className="text-gold-500/80" />
-                  {item.label}
+                  <span className="flex-1 text-left">{item.label}</span>
+                  {!!item.badge && item.badge > 0 && (
+                    <span className="bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">
+                      {item.badge}
+                    </span>
+                  )}
                 </button>
               ))}
               <div className="my-2 border-t border-gray-800" />
+              <button
+                onClick={() => { setIsMoreOpen(false); setIsReceiptOpen(true); }}
+                className="w-full flex items-center gap-4 px-3 py-3.5 rounded-xl text-sm font-medium text-gray-300 active:bg-gray-800 transition-colors"
+              >
+                <Camera size={20} className="text-gold-500/80" />
+                <span className="flex-1 text-left">Snap Receipt</span>
+              </button>
               <button
                 onClick={handleLogout}
                 className="w-full flex items-center gap-4 px-3 py-3.5 rounded-xl text-sm font-medium text-red-400/90 active:bg-red-500/10 transition-colors"
@@ -270,8 +347,18 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         <TransactionForm onComplete={() => setIsAddModalOpen(false)} />
       </Modal>
 
+      <CommandPalette
+        open={isPaletteOpen}
+        onClose={() => setIsPaletteOpen(false)}
+        onQuickAdd={() => {
+          setIsPaletteOpen(false);
+          setIsAddModalOpen(true);
+        }}
+      />
+
       <AIChat />
       <InstallPWA />
+      <ReceiptCapture open={isReceiptOpen} onClose={() => setIsReceiptOpen(false)} />
     </div>
   );
 };
