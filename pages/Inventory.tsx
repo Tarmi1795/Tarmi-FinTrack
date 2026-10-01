@@ -4,7 +4,9 @@ import { useFinance } from '../context/FinanceContext';
 import { inventoryService } from '../services/inventory';
 import { InventoryItem, InventoryMovement, InventorySettings, Transaction, Account } from '../types';
 import { Modal } from '../components/ui/Modal';
+import { AnimatedNumber } from '../components/ui/AnimatedNumber';
 import { InventoryPOS } from '../components/InventoryPOS';
+import { ItemThumb, invalidateImageUrl } from '../components/ItemThumb';
 import { SearchableSelect } from '../components/ui/SearchableSelect';
 import { confirmDialog, alertDialog } from '../components/ui/ConfirmDialog';
 import { SkeletonCard } from '../components/ui/Skeleton';
@@ -24,6 +26,19 @@ const marginPct = (cost: number, sale?: number | null): number | null =>
   sale && sale > 0 ? ((sale - cost) / sale) * 100 : null;
 const fmtPct = (n: number) => `${n >= 0 ? '' : '-'}${Math.abs(n).toFixed(1)}%`;
 const genId = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substr(2, 12));
+
+// Renders the stored item photo inside the form preview slot
+const StoredThumb: React.FC<{ path: string }> = ({ path }) => {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    import('../components/ItemThumb').then(({ getCachedImageUrl }) =>
+      getCachedImageUrl(path).then(u => { if (!cancelled) setUrl(u); }));
+    return () => { cancelled = true; };
+  }, [path]);
+  if (!url) return null;
+  return <img src={url} alt="" className="absolute inset-0 w-16 h-16 rounded-xl object-cover border border-gray-700" />;
+};
 
 const MovementBadge: React.FC<{ type: InventoryMovement['movement_type'] }> = ({ type }) => {
   const map = {
@@ -74,6 +89,10 @@ export const Inventory: React.FC = () => {
   const [fInvAcc, setFInvAcc] = useState('');
   const [fCogsAcc, setFCogsAcc] = useState('');
   const [fRevAcc, setFRevAcc] = useState('');
+  const [fImageFile, setFImageFile] = useState<File | null>(null);
+  const [fImagePreview, setFImagePreview] = useState<string | null>(null);
+  const [fImageRemoved, setFImageRemoved] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // Movement forms
   const [mQty, setMQty] = useState('');
@@ -222,6 +241,9 @@ export const Inventory: React.FC = () => {
     setFCogsAcc(item?.cogs_account_id ?? '');
     setFRevAcc(item?.revenue_account_id ?? '');
     setShowAdvanced(!!(item?.inventory_account_id || item?.cogs_account_id || item?.revenue_account_id));
+    setFImageFile(null);
+    setFImageRemoved(false);
+    setFImagePreview(item?.image_path ? '__stored__' : null);
     setShowItemForm(true);
   };
 
@@ -243,10 +265,30 @@ export const Inventory: React.FC = () => {
         cogs_account_id: fCogsAcc || null,
         revenue_account_id: fRevAcc || null,
       };
+      let itemId = editItem?.id;
       if (editItem) {
         await inventoryService.updateItem(user.id, editItem.id, payload);
       } else {
-        await inventoryService.createItem(user.id, { ...payload, quantity: 0, is_active: true });
+        const created = await inventoryService.createItem(user.id, { ...payload, quantity: 0, is_active: true });
+        itemId = created.id;
+      }
+      // Image handling: upload new file / apply removal
+      if (itemId && fImageFile) {
+        setIsUploadingImage(true);
+        try {
+          const path = await inventoryService.uploadItemImage(user.id, itemId, fImageFile);
+          if (editItem?.image_path && editItem.image_path !== path) {
+            await inventoryService.removeImage(editItem.image_path).catch(() => {});
+            invalidateImageUrl(editItem.image_path);
+          }
+          await inventoryService.updateItem(user.id, itemId, { image_path: path });
+        } finally {
+          setIsUploadingImage(false);
+        }
+      } else if (itemId && fImageRemoved && editItem?.image_path) {
+        await inventoryService.removeImage(editItem.image_path).catch(() => {});
+        invalidateImageUrl(editItem.image_path);
+        await inventoryService.updateItem(user.id, itemId, { image_path: null });
       }
       setShowItemForm(false);
       showToast(editItem ? 'Item updated.' : 'Item added.');
@@ -273,6 +315,10 @@ export const Inventory: React.FC = () => {
     setIsSaving(true);
     try {
       linked.forEach((m) => (m.gl_transaction_ids || []).forEach((txId) => dispatch({ type: 'DELETE_TRANSACTION', payload: txId })));
+      if (item.image_path) {
+        await inventoryService.removeImage(item.image_path).catch(() => {});
+        invalidateImageUrl(item.image_path);
+      }
       await inventoryService.deleteItem(user.id, item.id);
       showToast('Item deleted.');
       await loadAll();
@@ -590,11 +636,14 @@ export const Inventory: React.FC = () => {
     return (
       <div key={item.id} className="p-4">
         <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="font-bold text-white text-sm">{item.name}</p>
-            <p className="text-[11px] text-gray-500">
-              {item.sku && <span className="font-mono text-gold-500/80">{item.sku} • </span>}{item.category || 'Uncategorized'}
-            </p>
+          <div className="flex items-start gap-3 min-w-0">
+            <ItemThumb path={item.image_path} size={48} rounded="rounded-xl" />
+            <div className="min-w-0">
+              <p className="font-bold text-white text-sm">{item.name}</p>
+              <p className="text-[11px] text-gray-500">
+                {item.sku && <span className="font-mono text-gold-500/80">{item.sku} • </span>}{item.category || 'Uncategorized'}
+              </p>
+            </div>
           </div>
           <div className="text-right shrink-0">
             <p className={`font-mono font-bold ${low ? 'text-amber-400' : 'text-gold-400'}`}>{fmtQty(item.quantity)} {item.unit}</p>
@@ -760,22 +809,22 @@ export const Inventory: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <div className="glass-card p-3.5">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><Boxes size={12} /> Stock Value</div>
-          <p className="font-mono text-base md:text-xl font-bold text-gold-400 mt-2 truncate">{fmt(stats.stockValue)}</p>
+          <p className="font-mono text-base md:text-xl font-bold text-gold-400 mt-2 truncate"><AnimatedNumber value={stats.stockValue} /></p>
           <p className="text-[10px] text-gray-600 mt-0.5">{baseCurrency} • Σ qty × avg cost</p>
         </div>
         <div className="glass-card p-3.5">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><Package size={12} /> Items</div>
-          <p className="font-mono text-base md:text-xl font-bold text-white mt-2">{items.length}</p>
+          <p className="font-mono text-base md:text-xl font-bold text-white mt-2"><AnimatedNumber value={items.length} format={v => Math.round(v).toLocaleString()} /></p>
           <p className="text-[10px] text-gray-600 mt-0.5">tracked products</p>
         </div>
         <div className="glass-card p-3.5">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><AlertTriangle size={12} className={stats.lowStock ? 'text-amber-400' : ''} /> Low Stock</div>
-          <p className={`font-mono text-base md:text-xl font-bold mt-2 ${stats.lowStock ? 'text-amber-400' : 'text-white'}`}>{stats.lowStock}</p>
+          <p className={`font-mono text-base md:text-xl font-bold mt-2 ${stats.lowStock ? 'text-amber-400' : 'text-white'}`}><AnimatedNumber value={stats.lowStock} format={v => Math.round(v).toLocaleString()} /></p>
           <p className="text-[10px] text-gray-600 mt-0.5">at or below reorder level</p>
         </div>
         <div className="glass-card p-3.5">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><TrendingUp size={12} /> Potential Profit</div>
-          <p className="font-mono text-base md:text-xl font-bold text-emerald-400 mt-2 truncate">{fmt(Math.max(0, stats.potentialRevenue - stats.stockValue))}</p>
+          <p className="font-mono text-base md:text-xl font-bold text-emerald-400 mt-2 truncate"><AnimatedNumber value={Math.max(0, stats.potentialRevenue - stats.stockValue)} /></p>
           <p className="text-[10px] text-gray-600 mt-0.5">
             {baseCurrency} • {stats.avgMargin !== null ? <span className={stats.avgMargin >= 0 ? 'text-emerald-400/80' : 'text-red-400/80'}>{fmtPct(stats.avgMargin)} margin</span> : 'set sale prices'}
           </p>
@@ -838,6 +887,64 @@ export const Inventory: React.FC = () => {
       {/* Item form */}
       <Modal isOpen={showItemForm} onClose={() => setShowItemForm(false)} title={editItem ? 'Edit Item' : 'New Inventory Item'}>
         <div className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="relative shrink-0">
+              {fImagePreview ? (
+                <img
+                  src={fImagePreview === '__stored__' && editItem?.image_path ? undefined : fImagePreview || undefined}
+                  data-stored-path={fImagePreview === '__stored__' ? editItem?.image_path || '' : undefined}
+                  alt=""
+                  className="w-16 h-16 rounded-xl object-cover border border-gray-700"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-xl bg-gray-800 border border-gray-700 flex items-center justify-center text-gray-600">
+                  <Package size={22} />
+                </div>
+              )}
+              {fImagePreview === '__stored__' && editItem?.image_path && (
+                <StoredThumb path={editItem.image_path} />
+              )}
+            </div>
+            <div className="space-y-1.5 min-w-0">
+              <label className={labelCls}>Item photo</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => document.getElementById('inv-item-image-input')?.click()}
+                  className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-200 transition-colors active:scale-95"
+                >
+                  {fImageFile ? 'Change photo' : 'Upload photo'}
+                </button>
+                {(fImageFile || fImagePreview) && (
+                  <button
+                    type="button"
+                    onClick={() => { setFImageFile(null); setFImagePreview(null); setFImageRemoved(true); }}
+                    className="px-3 py-1.5 bg-gray-900 hover:bg-red-900/30 border border-gray-800 rounded-lg text-xs font-bold text-gray-400 hover:text-red-400 transition-colors active:scale-95"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              {isUploadingImage && <p className="text-[10px] text-gold-400">Uploading…</p>}
+              <input
+                id="inv-item-image-input"
+                type="file"
+                accept="image/*"
+                className="absolute w-px h-px opacity-0 pointer-events-none"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!file) return;
+                  setFImageFile(file);
+                  setFImageRemoved(false);
+                  const reader = new FileReader();
+                  reader.onload = () => setFImagePreview(String(reader.result || ''));
+                  reader.readAsDataURL(file);
+                }}
+              />
+            </div>
+          </div>
           <div>
             <label className={labelCls}>Item Name *</label>
             <input value={fName} onChange={(e) => setFName(e.target.value)} placeholder="e.g. Copy Paper A4" className={inputCls} autoFocus />

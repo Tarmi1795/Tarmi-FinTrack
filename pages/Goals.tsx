@@ -4,6 +4,7 @@ import { useFinance } from '../context/FinanceContext';
 import { goalsService } from '../services/goals';
 import { SavingsGoal, GoalMovement, Account, Transaction } from '../types';
 import { Modal } from '../components/ui/Modal';
+import { AnimatedNumber } from '../components/ui/AnimatedNumber';
 import { SearchableSelect } from '../components/ui/SearchableSelect';
 import { confirmDialog, alertDialog } from '../components/ui/ConfirmDialog';
 import { SkeletonCard } from '../components/ui/Skeleton';
@@ -455,17 +456,17 @@ export const Goals: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
         <div className="glass-card p-3.5">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><PiggyBank size={12} /> Total Saved</div>
-          <p className="font-mono text-base md:text-xl font-bold text-white mt-2 truncate">{fmt(totals.saved)}</p>
+          <p className="font-mono text-base md:text-xl font-bold text-white mt-2 truncate"><AnimatedNumber value={totals.saved} /></p>
           <p className="text-[10px] text-gray-600 mt-0.5">{baseCurrency} • across {activeGoals.length} active {activeGoals.length === 1 ? 'goal' : 'goals'}</p>
         </div>
         <div className="glass-card p-3.5">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><Target size={12} /> Total Target</div>
-          <p className="font-mono text-base md:text-xl font-bold text-gold-400 mt-2 truncate">{fmt(totals.target)}</p>
+          <p className="font-mono text-base md:text-xl font-bold text-gold-400 mt-2 truncate"><AnimatedNumber value={totals.target} /></p>
           <p className="text-[10px] text-gray-600 mt-0.5">{baseCurrency} • combined goal targets</p>
         </div>
         <div className="glass-card p-3.5 col-span-2 lg:col-span-1">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><TrendingUp size={12} /> Overall Progress</div>
-          <p className="font-mono text-base md:text-xl font-bold text-gold-400 mt-2 truncate">{totals.progress.toFixed(1)}%</p>
+          <p className="font-mono text-base md:text-xl font-bold text-gold-400 mt-2 truncate"><AnimatedNumber value={totals.progress} format={v => `${v.toFixed(1)}%`} /></p>
           <div className="h-2.5 bg-gray-800 rounded-full overflow-hidden mt-2">
             <div
               className="h-full bg-gradient-to-r from-gold-500 to-amber-400 rounded-full transition-all duration-500"

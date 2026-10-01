@@ -3,6 +3,7 @@ import { useFinance } from '../context/FinanceContext';
 import { supabase } from '../services/supabase';
 import { Denomination, CashCount } from '../types';
 import { DenominationManager } from '../components/DenominationManager';
+import { AnimatedNumber } from '../components/ui/AnimatedNumber';
 import { Calculator, Settings, RefreshCw, Save, History, ChevronRight, AlertCircle, TrendingUp, TrendingDown, Scale } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calculateDirectBalance } from '../utils/accountHierarchy';
@@ -259,7 +260,7 @@ export const MoneyCounter: React.FC = () => {
               <Calculator size={14} className="text-gold-500" /> Physical Cash Count
             </p>
             <div className="text-3xl md:text-5xl font-bold text-gold-gradient font-mono tracking-tight">
-              {totalAmount.toLocaleString()} <span className="text-xl md:text-2xl text-gold-600 ml-1">{activeDenominations[0]?.currency_code || 'QAR'}</span>
+              <AnimatedNumber value={totalAmount} format={v => v.toLocaleString()} /> <span className="text-xl md:text-2xl text-gold-600 ml-1">{activeDenominations[0]?.currency_code || 'QAR'}</span>
             </div>
           </div>
 

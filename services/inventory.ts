@@ -88,6 +88,26 @@ export const inventoryService = {
     if (error) throw error;
   },
 
+  // --- Item images (private bucket 'inventory-images', folder-per-user) ---
+  async uploadItemImage(userId: string, itemId: string, file: File): Promise<string> {
+    const path = `${userId}/${itemId}-${Date.now()}.jpg`;
+    const { error } = await supabase.storage
+      .from('inventory-images')
+      .upload(path, file, { contentType: 'image/jpeg', upsert: false });
+    if (error) throw error;
+    return path;
+  },
+
+  async removeImage(path: string): Promise<void> {
+    const { error } = await supabase.storage.from('inventory-images').remove([path]);
+    if (error) throw error;
+  },
+
+  async getImageUrl(path: string): Promise<string | null> {
+    const { data } = await supabase.storage.from('inventory-images').createSignedUrl(path, 600);
+    return data?.signedUrl || null;
+  },
+
   // --- Chart-of-Accounts mapping (Dr/Cr defaults) ---
   async getSettings(userId: string): Promise<InventorySettings | null> {
     const { data, error } = await supabase

@@ -5,6 +5,7 @@ import { tradingService } from '../services/trading';
 import { TradingAccount, TradingCashflow, TradingSnapshot, TradingFxRate, TradingCategory, Account } from '../types';
 import { CURRENCIES } from '../constants';
 import { Modal } from '../components/ui/Modal';
+import { AnimatedNumber } from '../components/ui/AnimatedNumber';
 import { SearchableSelect } from '../components/ui/SearchableSelect';
 import { confirmDialog, alertDialog } from '../components/ui/ConfirmDialog';
 import { SkeletonCard } from '../components/ui/Skeleton';
@@ -735,7 +736,7 @@ export const Trading: React.FC = () => {
       <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
         <div className="bg-gray-900/60 rounded-lg p-2.5">
           <p className="text-[9px] uppercase tracking-widest text-gray-500 font-bold">Balance Today</p>
-          <p className="font-mono text-base font-bold text-gold-400 mt-0.5">{r.balance !== null ? `${fmt(r.balance)}` : '—'}</p>
+          <p className="font-mono text-base font-bold text-gold-400 mt-0.5"><AnimatedNumber value={r.balance !== null ? Number(r.balance) : null} /></p>
         </div>
         <div className="bg-gray-900/60 rounded-lg p-2.5">
           <p className="text-[9px] uppercase tracking-widest text-gray-500 font-bold">Capital</p>
@@ -959,12 +960,12 @@ export const Trading: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <div className="glass-card p-3.5">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><Landmark size={12} /> Total Capital</div>
-          <p className="font-mono text-base md:text-xl font-bold text-white mt-2 truncate">{fmt(totals.capitalBase)}</p>
+          <p className="font-mono text-base md:text-xl font-bold text-white mt-2 truncate"><AnimatedNumber value={totals.capitalBase} /></p>
           <p className="text-[10px] text-gray-600 mt-0.5">{baseCurrency} • net deposits{archivedAccounts.length > 0 ? ` • incl. ${archivedAccounts.length} archived` : ''}</p>
         </div>
         <div className="glass-card p-3.5">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><Wallet size={12} /> Balance Today</div>
-          <p className="font-mono text-base md:text-xl font-bold text-gold-400 mt-2 truncate">{fmt(totals.balanceBase)}</p>
+          <p className="font-mono text-base md:text-xl font-bold text-gold-400 mt-2 truncate"><AnimatedNumber value={totals.balanceBase} /></p>
           <p className="text-[10px] text-gray-600 mt-0.5">{baseCurrency} • latest snapshots{archivedAccounts.length > 0 ? ' • incl. archived' : ''}</p>
         </div>
         <div className="glass-card p-3.5">
@@ -1151,7 +1152,7 @@ export const Trading: React.FC = () => {
                             </div>
                             <div className="flex items-center gap-4 font-mono text-[11px]">
                               <span className="text-gray-500">Cap <span className="text-gray-300">{fmt(g.agg.capital)}</span></span>
-                              <span className="text-gray-500">Bal <span className="text-gold-400 font-bold">{fmt(g.agg.balance)}</span></span>
+                              <span className="text-gray-500">Bal <span className="text-gold-400 font-bold"><AnimatedNumber value={Number(g.agg.balance)} /></span></span>
                               <span className={g.agg.pnl >= 0 ? 'text-emerald-400 font-bold' : 'text-red-400 font-bold'}>
                                 {g.agg.pnl >= 0 ? '+' : ''}{fmt(g.agg.pnl)} ({fmtPct(g.agg.roi)})
                               </span>
@@ -1207,7 +1208,7 @@ export const Trading: React.FC = () => {
                       </div>
                     </div>
                     <div className="text-right font-mono">
-                      <p className="text-gold-400 font-bold text-sm">{fmt(g.agg.balance)}</p>
+                      <p className="text-gold-400 font-bold text-sm"><AnimatedNumber value={Number(g.agg.balance)} /></p>
                       <p className={`text-[11px] font-bold ${g.agg.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                         {g.agg.pnl >= 0 ? '+' : ''}{fmt(g.agg.pnl)} ({fmtPct(g.agg.roi)})
                       </p>

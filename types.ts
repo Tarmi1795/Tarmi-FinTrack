@@ -285,6 +285,7 @@ export interface InventoryItem {
   inventory_account_id?: string | null;
   cogs_account_id?: string | null;
   revenue_account_id?: string | null;
+  image_path?: string | null; // private storage object 'inventory-images/{uid}/{itemId}-{ts}.jpg'
   created_at?: string;
   updated_at?: string;
 }

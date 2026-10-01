@@ -7,6 +7,7 @@ import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval, startOfYe
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { Modal } from '../components/ui/Modal';
+import { AnimatedNumber } from '../components/ui/AnimatedNumber';
 import { notifications } from '../utils/notifications';
 
 export const Dashboard: React.FC = () => {
@@ -401,7 +402,7 @@ export const Dashboard: React.FC = () => {
           <div className="glass-card p-4 md:p-5 rounded-2xl relative overflow-hidden bg-gray-900 border border-gold-500/10 hover:border-gold-500/30 hover:-translate-y-1 hover:shadow-2xl transition-all duration-300 group">
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 sm:gap-2 mb-3 md:mb-4">
                   <h3 className="text-gray-400 text-[11px] md:text-xs font-bold uppercase tracking-widest flex items-center gap-2"><Wallet size={14} className="text-gold-500 group-hover:scale-110 transition-transform"/> Cash and Cash Equivalent </h3>
-                  <span className="text-xl md:text-2xl font-bold text-white group-hover:text-gold-400 transition-colors font-mono">{currency} {totalSelectedCash.toLocaleString()}</span>
+                  <span className="text-xl md:text-2xl font-bold text-white group-hover:text-gold-400 transition-colors font-mono">{currency} <AnimatedNumber value={totalSelectedCash} format={v => v.toLocaleString()} /></span>
               </div>
               <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
                   {assetBalances.map(acc => (
@@ -424,7 +425,7 @@ export const Dashboard: React.FC = () => {
                   <div>
                       <p className="text-gray-400 text-[11px] md:text-xs font-bold uppercase tracking-widest flex items-center gap-2"><Briefcase size={14} className="text-blue-500 group-hover:scale-110 transition-transform"/> Business Performance</p>
                       <h3 className={`text-2xl md:text-3xl font-bold mt-2 font-mono ${bizStats.gross >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
-                          {currency} {bizStats.gross.toLocaleString()}
+                          {currency} <AnimatedNumber value={bizStats.gross} format={v => v.toLocaleString()} />
                       </h3>
                       <div className="flex items-center gap-2 mt-2">
                           <span className="text-xs text-gray-500 font-bold">GROSS PROFIT (Rev - Direct Cost)</span>
@@ -451,7 +452,7 @@ export const Dashboard: React.FC = () => {
               <div className="flex justify-between items-start">
                   <div>
                     <p className="text-[10px] font-bold text-emerald-500 uppercase">Receivables</p>
-                    <p className="text-lg font-bold text-white mt-1">{currency} {totalReceivables.toLocaleString()}</p>
+                    <p className="text-lg font-bold text-white mt-1">{currency} <AnimatedNumber value={totalReceivables} format={v => v.toLocaleString()} /></p>
                   </div>
                   <ArrowDownLeft size={16} className="text-emerald-500 opacity-50"/>
               </div>
@@ -462,7 +463,7 @@ export const Dashboard: React.FC = () => {
              <div className="flex justify-between items-start">
                   <div>
                       <p className="text-[10px] font-bold text-orange-500 uppercase">Payables</p>
-                      <p className="text-lg font-bold text-white mt-1">{currency} {totalPayables.toLocaleString()}</p>
+                      <p className="text-lg font-bold text-white mt-1">{currency} <AnimatedNumber value={totalPayables} format={v => v.toLocaleString()} /></p>
                   </div>
                   <ArrowUpRight size={16} className="text-orange-500 opacity-50"/>
               </div>

@@ -9,6 +9,7 @@ import {
   Pencil, Ban, Trash2, Share2, FileText, Wallet, BadgeCheck, Info
 } from 'lucide-react';
 import { Modal } from '../components/ui/Modal';
+import { AnimatedNumber } from '../components/ui/AnimatedNumber';
 import { SearchableSelect } from '../components/ui/SearchableSelect';
 import { confirmDialog, alertDialog } from '../components/ui/ConfirmDialog';
 import { SkeletonCard } from '../components/ui/Skeleton';
@@ -661,12 +662,12 @@ export const Invoices: React.FC = () => {
         </div>
         <div className="glass-card p-3.5">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><FileText size={12} className="text-violet-400" /> Quotes Open</div>
-          <p className="font-mono text-base md:text-xl font-bold text-white mt-2 truncate">{summary.quotesOpen}</p>
+          <p className="font-mono text-base md:text-xl font-bold text-white mt-2 truncate"><AnimatedNumber value={summary.quotesOpen} format={v => Math.round(v).toLocaleString()} /></p>
           <p className="text-[10px] text-gray-600 mt-0.5">waiting to be sent</p>
         </div>
         <div className="glass-card p-3.5">
           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><Receipt size={12} /> Total Invoices</div>
-          <p className="font-mono text-base md:text-xl font-bold text-white mt-2 truncate">{summary.total}</p>
+          <p className="font-mono text-base md:text-xl font-bold text-white mt-2 truncate"><AnimatedNumber value={summary.total} format={v => Math.round(v).toLocaleString()} /></p>
           <p className="text-[10px] text-gray-600 mt-0.5">all statuses</p>
         </div>
       </div>

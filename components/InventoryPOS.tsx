@@ -7,6 +7,7 @@ import { Modal } from './ui/Modal';
 import { format } from 'date-fns';
 import { SearchableSelect } from './ui/SearchableSelect';
 import { confirmDialog } from './ui/ConfirmDialog';
+import { ItemThumb } from './ItemThumb';
 import {
   ShoppingCart, Trash2, Plus, Minus, Search, ScanBarcode, Loader2, ArrowDownToLine, TrendingUp,
 } from 'lucide-react';
@@ -298,12 +299,17 @@ export const InventoryPOS: React.FC<{
                   key={item.id}
                   onClick={() => addToCart(item)}
                   disabled={out}
-                  className={`text-left p-3 rounded-xl border transition-all active:scale-[0.97] ${
+                  className={`relative text-left p-3 rounded-xl border transition-all active:scale-[0.97] ${
                     out ? 'border-gray-800/60 bg-gray-950/50 opacity-40 cursor-not-allowed'
                       : 'border-gray-800 bg-gray-900/50 hover:border-gold-500/40 hover:bg-gray-900'
                   }`}
                 >
-                  <p className="text-sm font-bold text-gray-200 truncate">{item.name}</p>
+                  {item.image_path && (
+                    <div className="absolute top-2 right-2 opacity-80">
+                      <ItemThumb path={item.image_path} size={26} />
+                    </div>
+                  )}
+                  <p className="text-sm font-bold text-gray-200 truncate pr-7">{item.name}</p>
                   <p className="text-[10px] text-gray-500 mt-0.5">{item.sku || item.category || item.unit || '\u00A0'}</p>
                   <div className="flex items-center justify-between mt-1.5">
                     <span className={`font-mono text-xs font-bold ${out ? 'text-gray-600' : 'text-gold-400'}`}>
