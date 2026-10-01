@@ -10,6 +10,7 @@ import { format, parseISO, addMonths, addWeeks, addYears, addDays, endOfDay } fr
 import { excelService } from '../services/excel';
 import { buildAccountTree, AccountNode } from '../utils/accountHierarchy';
 import { TransactionForm } from '../components/TransactionForm';
+import { ChartOfAccounts } from '../components/ChartOfAccounts';
 import { SearchableSelect } from '../components/ui/SearchableSelect';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { CURRENCIES } from '../constants';
@@ -40,16 +41,6 @@ export const Settings: React.FC = () => {
   const [bizFooter, setBizFooter] = useState(state.businessProfile.footerNote || '');
 
   // COA State
-  const [coaSearch, setCoaSearch] = useState('');
-  const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
-  const [newAccName, setNewAccName] = useState('');
-  const [newAccDescription, setNewAccDescription] = useState('');
-  const [newAccClass, setNewAccClass] = useState<AccountClass>('Expenses');
-  const [newAccCode, setNewAccCode] = useState('');
-  const [newAccParent, setNewAccParent] = useState('');
-  const [newAccLevel, setNewAccLevel] = useState<AccountLevel>('gl');
-  const [editingAccId, setEditingAccId] = useState<string | null>(null);
-  const [editingAccName, setEditingAccName] = useState('');
 
   // Parties State
   const [partySearch, setPartySearch] = useState('');
@@ -96,33 +87,9 @@ export const Settings: React.FC = () => {
       return buildAccountTree(state.accounts, effectiveTransactions);
   }, [state.accounts, state.transactions]);
 
-  const toggleNode = (id: string) => {
-      setExpandedNodes(prev => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  useMemo(() => {
-      if (coaSearch) {
-          const allIds: Record<string, boolean> = {};
-          state.accounts.forEach(a => allIds[a.id] = true);
-          setExpandedNodes(allIds);
-      }
-  }, [coaSearch, state.accounts]);
-
-  const flatAccounts = useMemo(() => state.accounts.filter(a => a.level === 'group' || a.level === 'class' || a.level === 'gl').sort((a,b) => a.code.localeCompare(b.code)), [state.accounts]);
-
   const availableAccounts = useMemo(() => 
       state.accounts.filter(a => a.isPosting).map(c => ({ id: c.id, label: c.name, subLabel: c.code })),
   [state.accounts]);
-
-  // Update Class when Parent changes
-  useEffect(() => {
-      if (newAccParent) {
-          const parent = state.accounts.find(a => a.id === newAccParent);
-          if (parent) {
-              setNewAccClass(parent.class);
-          }
-      }
-  }, [newAccParent, state.accounts]);
 
   // --- HANDLERS ---
 
@@ -160,26 +127,6 @@ export const Settings: React.FC = () => {
         setMigrationConfirm('');
         setActiveTab('profile'); // Switch away
     }
-  };
-
-  const handleAddAccount = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newAccName || !newAccCode) return;
-    let normalBalance: 'debit' | 'credit' = 'debit';
-    if (['Liabilities', 'Equity', 'Revenue'].includes(newAccClass)) normalBalance = 'credit';
-
-    dispatch({ type: 'ADD_ACCOUNT', payload: {
-        id: Math.random().toString(36).substr(2, 9),
-        name: newAccName,
-        class: newAccClass,
-        code: newAccCode,
-        level: newAccLevel,
-        parentId: newAccParent || undefined,
-        normalBalance,
-        isPosting: newAccLevel === 'gl' || newAccLevel === 'sub_ledger',
-        description: newAccDescription.trim() || undefined
-    }});
-    setNewAccName(''); setNewAccCode(''); setNewAccDescription('');
   };
 
   const handleEditParty = (party: Party) => {
@@ -457,9 +404,6 @@ export const Settings: React.FC = () => {
   const handleExcelExport = () => excelService.exportDataToExcel(state);
   const handleRestore = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if(!file)return; const reader=new FileReader(); reader.onload=async(ev)=>{ try{ const json=JSON.parse(ev.target?.result as string); if (await confirmDialog({ title: 'Restore?', danger: true, confirmLabel: 'Restore' })) dispatch({type:'SET_STATE', payload:json}); }catch(err){ await alertDialog({ title: 'Invalid JSON' }); }}; reader.readAsText(file); };
   const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if(!file)return; if (await confirmDialog({ title: 'Overwrite data?', danger: true, confirmLabel: 'Overwrite' })) { try{ const data=await excelService.importDataFromExcel(file); if(data.transactions) dispatch({type:'SET_STATE', payload:{...state, ...data}}); await alertDialog({ title: 'Imported' }); }catch(e){ await alertDialog({ title: 'Error' }); } } };
-  const startEditingAcc = (acc: Account) => { setEditingAccId(acc.id); setEditingAccName(acc.name); };
-  const saveEditingAcc = () => { if(editingAccId) { const orig = state.accounts.find(c => c.id === editingAccId); if(orig) dispatch({ type: 'UPDATE_ACCOUNT', payload: { ...orig, name: editingAccName } }); setEditingAccId(null); } };
-  const cancelEditingAcc = () => { setEditingAccId(null); };
   const handleReset = async () => { if (await confirmDialog({ title: 'RESET DATA?', message: 'ALL TRANSACTIONS WILL BE LOST.', danger: true, confirmLabel: 'Reset' })) dispatch({ type: 'RESET_DATA' }); };
 
   const getBalanceColor = (node: AccountNode) => {
@@ -469,49 +413,6 @@ export const Settings: React.FC = () => {
         return bal < 0 ? 'text-emerald-400' : 'text-red-400';
     }
     return bal > 0 ? 'text-emerald-400' : 'text-red-400';
-  };
-
-  const renderTreeNodes = (nodes: AccountNode[], depth: number = 0) => {
-      return nodes.map(node => {
-          if (coaSearch) {
-              const match = node.name.toLowerCase().includes(coaSearch.toLowerCase()) || node.code.includes(coaSearch);
-              if (!match && node.children.length === 0) return null;
-          }
-          const hasChildren = node.children.length > 0;
-          const isExpanded = expandedNodes[node.id];
-          const isGroup = node.level === 'group' || node.level === 'class';
-          return (
-              <div key={node.id}>
-                  <div className={`flex items-center justify-between p-3 border-b border-gray-800 hover:bg-gray-800/50 transition-colors ${node.level === 'class' ? 'bg-gray-900/80 font-bold' : ''}`} style={{ paddingLeft: `${depth * 20 + 12}px` }}>
-                      <div className="flex items-center gap-3 flex-1 overflow-hidden">
-                          <div className="w-5 flex justify-center">{hasChildren && (<button onClick={() => toggleNode(node.id)} className="text-gray-500 hover:text-white transition-transform active:scale-90">{isExpanded || coaSearch ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</button>)}</div>
-                          <span className={`font-mono text-xs ${isGroup ? 'text-gray-400' : 'text-gray-500'} w-12 shrink-0`}>{node.code}</span>
-                          {editingAccId === node.id ? (
-                                <div className="flex gap-2 flex-1"><input className="w-full px-2 py-1 bg-gray-950 border border-blue-500 rounded text-sm text-white" value={editingAccName} onChange={e => setEditingAccName(e.target.value)} autoFocus /><button onClick={saveEditingAcc} className="text-emerald-500"><Check size={16} /></button><button onClick={cancelEditingAcc} className="text-red-500"><X size={16} /></button></div>
-                          ) : (
-                              <div className="truncate">
-                                <div className="flex items-center gap-2">{isGroup && <Folder size={14} className="text-blue-500/50" />}<span className={`${isGroup ? 'text-gray-200' : 'text-gray-400'} truncate`}>{node.name}</span></div>
-                                {node.description && <p className="text-[10px] text-gray-600 truncate mt-0.5" title={node.description}>{node.description}</p>}
-                              </div>
-                          )}
-                      </div>
-                      <div className="flex items-center gap-4 pl-4">
-                          <span className={`font-mono text-sm ${getBalanceColor(node)} ${isGroup ? 'font-bold' : ''}`}>{node.totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button onClick={() => goToSOA(node.id)} className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-gray-800 rounded transition-colors" title="View Ledger">
-                                  <FileText size={14} />
-                              </button>
-                              <button onClick={() => startEditingAcc(node)} className="p-1.5 text-gray-600 hover:text-blue-400 hover:bg-gray-800 rounded transition-colors"><Pencil size={14} /></button>
-                              {!node.isSystem && !hasChildren && (
-                                  <button onClick={() => handleDelete('ACCOUNT', node.id)} className="p-1.5 text-gray-600 hover:text-red-400 hover:bg-gray-800 rounded transition-colors"><Trash2 size={14} /></button>
-                              )}
-                          </div>
-                      </div>
-                  </div>
-                  {(isExpanded || coaSearch) && hasChildren && (<div className="border-l border-gray-800 ml-4 animate-fade-in">{renderTreeNodes(node.children, depth + 1)}</div>)}
-              </div>
-          );
-      });
   };
 
   const filteredParties = state.parties.filter(p => 
@@ -861,77 +762,8 @@ export const Settings: React.FC = () => {
       )}
 
       {activeTab === 'coa' && (
-        <div className="space-y-6 animate-fade-in">
-            <div className="bg-gray-900 rounded-2xl shadow-sm border border-gray-800 overflow-hidden">
-                <div className="p-5 border-b border-gray-800 bg-gray-900 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div>
-                        <h3 className="font-semibold text-gray-200">Chart of Accounts</h3>
-                        <p className="text-xs text-gray-500 mt-1">Hierarchical view with aggregated signed balances.</p>
-                    </div>
-                    <div className="relative w-full sm:w-auto">
-                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-                        <input type="text" placeholder="Search accounts..." className="w-full sm:w-64 pl-9 pr-4 py-2 bg-gray-950 border border-gray-700 rounded-lg text-sm text-white focus:border-primary outline-none transition-all" value={coaSearch} onChange={e => setCoaSearch(e.target.value)} />
-                    </div>
-                </div>
-                
-                {/* Add New Form */}
-                <form onSubmit={handleAddAccount} className="p-5 border-b border-gray-800 grid grid-cols-1 md:grid-cols-7 gap-3 items-end bg-gray-800/50">
-                    <div className="md:col-span-1">
-                        <label className="text-[10px] uppercase text-gray-500 font-bold mb-1 block">Code</label>
-                        <input className="w-full px-3 py-2 bg-gray-800 text-white border border-gray-700 rounded-lg text-sm outline-none focus:border-primary" placeholder="e.g 1100" type="number" value={newAccCode} onChange={e => setNewAccCode(e.target.value)} />
-                    </div>
-                    <div className="md:col-span-1">
-                        <label className="text-[10px] uppercase text-gray-500 font-bold mb-1 block">Class</label>
-                        <select 
-                            className="w-full px-3 py-2 bg-gray-800 text-white border border-gray-700 rounded-lg text-sm outline-none focus:border-primary disabled:opacity-50" 
-                            value={newAccClass} 
-                            onChange={e => setNewAccClass(e.target.value as AccountClass)}
-                            disabled={!!newAccParent} // Disable if inheriting from parent
-                        >
-                            <option value="Assets">Assets</option>
-                            <option value="Liabilities">Liabilities</option>
-                            <option value="Equity">Equity</option>
-                            <option value="Revenue">Revenue</option>
-                            <option value="Expenses">Expenses</option>
-                        </select>
-                    </div>
-                    <div className="md:col-span-2">
-                        <label className="text-[10px] uppercase text-gray-500 font-bold mb-1 block">Name</label>
-                        <input className="w-full px-3 py-2 bg-gray-800 text-white border border-gray-700 rounded-lg text-sm outline-none focus:border-primary" placeholder="Account Name" value={newAccName} onChange={e => setNewAccName(e.target.value)} />
-                        <input className="w-full px-3 py-2 bg-gray-800 text-white border border-gray-700 rounded-lg text-sm outline-none focus:border-primary mt-2" placeholder="Description — what is this account for?" value={newAccDescription} onChange={e => setNewAccDescription(e.target.value)} />
-                    </div>
-                    <div>
-                        <label className="text-[10px] uppercase text-gray-500 font-bold mb-1 block">Level</label>
-                        <select className="w-full px-3 py-2 bg-gray-800 text-white border border-gray-700 rounded-lg text-sm outline-none focus:border-primary" value={newAccLevel} onChange={e => setNewAccLevel(e.target.value as AccountLevel)}>
-                            <option value="group">Group</option>
-                            <option value="gl">GL Account</option>
-                            <option value="sub_ledger">Sub-Ledger</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="text-[10px] uppercase text-gray-500 font-bold mb-1 block">Parent</label>
-                        <select className="w-full px-3 py-2 bg-gray-800 text-white border border-gray-700 rounded-lg text-sm outline-none focus:border-primary" value={newAccParent} onChange={e => setNewAccParent(e.target.value)}>
-                            <option value="">(None / Root)</option>
-                            {flatAccounts.map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
-                        </select>
-                    </div>
-                    <button className="bg-primary hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-transform active:scale-95">
-                        <Plus size={16} /> Add
-                    </button>
-                </form>
-
-                {/* Tree List */}
-                <div className="max-h-[600px] overflow-y-auto group">
-                    {(['Assets', 'Liabilities', 'Equity', 'Revenue', 'Expenses'] as AccountClass[]).map(acClass => (
-                        <div key={acClass}>
-                            <div className="bg-gray-950 px-4 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-800 border-t flex justify-between">
-                                <span>{acClass}</span>
-                            </div>
-                            {renderTreeNodes(accountTree[acClass])}
-                        </div>
-                    ))}
-                </div>
-            </div>
+        <div className="animate-fade-in">
+          <ChartOfAccounts />
         </div>
       )}
 
