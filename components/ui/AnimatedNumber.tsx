@@ -13,6 +13,9 @@ interface AnimatedNumberProps {
   /** 'roll' = odometer digit strips (default); 'count' = eased count-up. */
   mode?: 'roll' | 'count';
   duration?: number; // ms
+  /** Per-character gold gradient — required inside parents using text-gold-gradient
+   * (background-clip: text cannot paint through the digit strips' transforms). */
+  gradient?: boolean;
   className?: string;
 }
 
@@ -30,53 +33,67 @@ const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
  * Rolling odometer number. The formatted value is split into characters;
  * digits render as vertical 0-9 strips that translate to their target with a
  * staggered, right-to-left ease. Separators, currency and signs stay static.
+ * Animates from zero on first mount, and from the previous value afterwards.
  */
 export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
   value,
   format = DEFAULT_FORMAT,
   mode = 'roll',
   duration = 900,
+  gradient = false,
   className = '',
 }) => {
   const prevValue = useRef<number | null>(null);
-  const [displayValue, setDisplayValue] = useState<number>(value ?? 0);
+  const [displayValue, setDisplayValue] = useState<number>(0);
   const [animating, setAnimating] = useState(false);
 
   useEffect(() => {
     const target = value ?? 0;
-    if (prevValue.current === null || motionReduced()) {
-      prevValue.current = target;
-      setDisplayValue(target);
-      return;
-    }
-    const from = prevValue.current;
+    const first = prevValue.current === null;
+    const from = prevValue.current ?? 0;
     prevValue.current = target;
-    if (from === target) {
+
+    if (motionReduced() || from === target) {
       setDisplayValue(target);
+      setAnimating(false);
       return;
     }
+
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const rafs: number[] = [];
+    const cleanup = () => { timers.forEach(clearTimeout); rafs.forEach(cancelAnimationFrame); };
+
     if (mode === 'count') {
-      const start = performance.now();
-      let raf = 0;
       setAnimating(true);
+      const start = performance.now() + (first ? 60 : 0);
       const tick = (now: number) => {
-        const t = Math.min(1, (now - start) / duration);
+        const t = Math.min(1, Math.max(0, (now - start) / duration));
         setDisplayValue(from + (target - from) * easeOut(t));
-        if (t < 1) raf = requestAnimationFrame(tick);
+        if (t < 1) rafs.push(requestAnimationFrame(tick));
         else { setDisplayValue(target); setAnimating(false); }
       };
-      raf = requestAnimationFrame(tick);
-      return () => cancelAnimationFrame(raf);
+      rafs.push(requestAnimationFrame(tick));
+      return cleanup;
     }
-    // roll mode: snap to target, CSS transitions do the rolling
+
+    // roll mode
     setAnimating(true);
-    setDisplayValue(target);
-    const timeout = setTimeout(() => setAnimating(false), duration + 150);
-    return () => clearTimeout(timeout);
+    if (first) {
+      // Start the strips at zero, then roll to the target after paint
+      setDisplayValue(0);
+      timers.push(setTimeout(() => setDisplayValue(target), 60));
+    } else {
+      setDisplayValue(target);
+    }
+    timers.push(setTimeout(() => setAnimating(false), duration + 500));
+    return cleanup;
   }, [value, mode, duration]);
 
   const text = format(displayValue);
   const chars = text.split('');
+  const goldCls = gradient
+    ? 'text-transparent bg-clip-text bg-gradient-to-b from-[#FFF176] via-[#D4AF37] to-[#A08020]'
+    : '';
 
   if (mode === 'count') {
     return <span className={`${className} tabular-nums`}>{text}</span>;
@@ -90,7 +107,7 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
       {chars.map((ch, i) => {
         if (!/\d/.test(ch)) {
           return (
-            <span key={i} className="inline-block whitespace-pre">
+            <span key={i} className={`inline-block whitespace-pre ${goldCls}`}>
               {ch}
             </span>
           );
@@ -114,7 +131,7 @@ export const AnimatedNumber: React.FC<AnimatedNumberProps> = ({
               }}
             >
               {DIGITS.map(d => (
-                <span key={d} style={{ height: '1em', lineHeight: '1em' }}>
+                <span key={d} style={{ height: '1em', lineHeight: '1em' }} className={goldCls}>
                   {d}
                 </span>
               ))}

@@ -260,7 +260,7 @@ export const MoneyCounter: React.FC = () => {
               <Calculator size={14} className="text-gold-500" /> Physical Cash Count
             </p>
             <div className="text-3xl md:text-5xl font-bold text-gold-gradient font-mono tracking-tight">
-              <AnimatedNumber value={totalAmount} format={v => v.toLocaleString()} /> <span className="text-xl md:text-2xl text-gold-600 ml-1">{activeDenominations[0]?.currency_code || 'QAR'}</span>
+              <AnimatedNumber value={totalAmount} format={v => v.toLocaleString()} gradient /> <span className="text-xl md:text-2xl text-gold-600 ml-1">{activeDenominations[0]?.currency_code || 'QAR'}</span>
             </div>
           </div>
 
