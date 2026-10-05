@@ -41,6 +41,7 @@ export const InventoryPOS: React.FC<{
   const [paymentId, setPaymentId] = useState('');
   const [note, setNote] = useState('');
   const [unitCosts, setUnitCosts] = useState<Record<string, string>>({});
+  const [unitPrices, setUnitPrices] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -114,7 +115,7 @@ export const InventoryPOS: React.FC<{
 
   const removeLine = (itemId: string) => setCart(c => c.filter(l => l.item.id !== itemId));
 
-  const unitPriceOf = (l: PosLine) => l.item.sale_price || 0;
+  const unitPriceOf = (l: PosLine) => Number(unitPrices[l.item.id] ?? l.item.sale_price ?? 0) || 0;
   const unitCostOf = (l: PosLine) =>
     mode === 'stock' ? Number(unitCosts[l.item.id] ?? l.item.cost_price ?? 0) : l.item.cost_price;
 
@@ -245,6 +246,7 @@ export const InventoryPOS: React.FC<{
       setCart([]);
       setNote('');
       setUnitCosts({});
+      setUnitPrices({});
       onDone();
       onClose();
     } catch (e: any) {
@@ -364,6 +366,16 @@ export const InventoryPOS: React.FC<{
                     placeholder={`Unit cost (${baseCurrency})`}
                     className={`${inputCls} font-mono mt-2 text-xs py-1.5`}
                     inputMode="decimal"
+                  />
+                )}
+                {mode === 'sale' && (
+                  <input
+                    value={unitPrices[l.item.id] ?? String(l.item.sale_price || '')}
+                    onChange={(e) => setUnitPrices(u => ({ ...u, [l.item.id]: e.target.value }))}
+                    placeholder={`Unit price (${baseCurrency})`}
+                    className={`${inputCls} font-mono mt-2 text-xs py-1.5`}
+                    inputMode="decimal"
+                    aria-label={`Unit price for ${l.item.name}`}
                   />
                 )}
               </div>
