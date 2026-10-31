@@ -7,7 +7,7 @@ import { SUPABASE_URL, SUPABASE_KEY, DEFAULT_ACCOUNTS, SEED_PARTIES, SEED_TRANSA
 import { addMonths, addWeeks, addYears, addDays, isPast, parseISO, isBefore, format } from 'date-fns';
 import { User } from '@supabase/supabase-js';
 import { calculateDirectBalance } from '../utils/accountHierarchy';
-import { alertDialog } from '../components/ui/ConfirmDialog';
+import { alertDialog, confirmDialog } from '../components/ui/ConfirmDialog';
 
 // MIGRATION HELPER
 const migrateState = (oldState: any): AppState => {
@@ -370,6 +370,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const syncStatusRef = useRef(syncStatus);
   useEffect(() => { syncStatusRef.current = syncStatus; }, [syncStatus]);
   const retryAttemptRef = useRef(0);
+  const lastRecSigRef = useRef('');
+  const processingRecRef = useRef(false);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -495,122 +497,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Automated Checks (Recurring & Depreciation)
   useEffect(() => {
+      const now = new Date();
       const recurringRules = state.recurring || [];
       const hasAssets = state.assets && state.assets.length > 0;
-      
       if (recurringRules.length === 0 && !hasAssets) return;
-      
-      const now = new Date();
-      const newRecTransactions: Transaction[] = [];
-      const newRecReceivables: Receivable[] = [];
-      const updatedRecurring: RecurringTransaction[] = [];
-
-      recurringRules.forEach(rule => {
-          if (rule.active && rule.nextDueDate) {
-              const dueDate = parseISO(rule.nextDueDate);
-              if (isPast(dueDate)) {
-                  // STRICT DATE CALCULATION FOR AUTOMATED SCHEDULER
-                  const dateStr = rule.nextDueDate.split('T')[0];
-                  const baseDate = new Date(dateStr + 'T00:00:00.000Z');
-
-                  if (rule.generationType === 'receivable') {
-                      const recDueDate = addDays(baseDate, rule.dueDays || 0).toISOString();
-                      const recId = Math.random().toString(36).substr(2, 9);
-                      
-                      const party = state.parties.find(p => p.id === rule.partyId);
-                      const partyLinkedAccount = party?.linkedAccountId;
-                      const rType = rule.type === 'income' ? 'receivable' : 'payable';
-                      const subType = rule.receivableType || (rule.type === 'income' ? 'invoice' : 'bill');
-
-                      newRecReceivables.push({
-                          id: recId,
-                          type: rType,
-                          subType: subType,
-                          partyName: party?.name || 'Recurring Contact',
-                          partyId: rule.partyId,
-                          targetAccountId: rule.accountId,
-                          amount: rule.amount,
-                          paidAmount: 0,
-                          originalAmount: rule.originalAmount,
-                          currency: rule.currency,
-                          issueDate: baseDate.toISOString(),
-                          dueDate: recDueDate,
-                          status: 'pending',
-                          notes: `Auto-generated from Recurring: ${rule.note || ''}`,
-                          recurring: {
-                              active: rule.active,
-                              amount: rule.amount,
-                              frequency: rule.frequency,
-                              nextDueDate: rule.nextDueDate
-                          }
-                      });
-
-                      // Auto-Generate Accrual Journal Entry
-                      if (partyLinkedAccount) {
-                          newRecTransactions.push({
-                              id: Math.random().toString(36).substr(2, 9),
-                              date: baseDate.toISOString(),
-                              type: rule.type,
-                              amount: rule.amount,
-                              currency: rule.currency,
-                              originalAmount: rule.originalAmount,
-                              relatedPartyId: rule.partyId,
-                              source: rType === 'receivable' ? 'side_hustle' : 'personal',
-                              note: `Accrual (Auto): ${subType} Ref:${recId}`,
-                               accountId: rType === 'receivable' ? partyLinkedAccount : rule.accountId,
-                              paymentAccountId: rType === 'receivable' ? rule.accountId : partyLinkedAccount,
-                              receivableId: recId,
-                              recurringRuleId: rule.id
-                          });
-                      }
-                  } else {
-                      // TWEAK: Ask user before triggering raw transaction (Requirements 1)
-                      const shouldRecognize = window.confirm(`Recurring Rule Due: "${rule.note || 'Auto'}" (${rule.currency} ${rule.amount})\n\nClick OK to RECOGNIZE and record now.\nClick CANCEL to PAUSE this rule.`);
-
-                      if (shouldRecognize) {
-                          newRecTransactions.push({
-                              id: Math.random().toString(36).substr(2, 9),
-                              date: baseDate.toISOString(), 
-                              type: rule.type,
-                              amount: rule.amount,
-                              currency: rule.currency,
-                              originalAmount: rule.originalAmount,
-                              accountId: rule.accountId,
-                              source: rule.source,
-                              paymentAccountId: rule.paymentAccountId,
-                              relatedPartyId: rule.partyId,
-                              note: `Recurring: ${rule.note || 'Auto Transaction'}`,
-                              recurringRuleId: rule.id
-                          });
-                      } else {
-                          // Pause the rule as requested
-                          updatedRecurring.push({
-                              ...rule,
-                              active: false
-                          });
-                          return; // Exit this rule check
-                      }
-                  }
-                  
-                  
-                  let nextDate = baseDate;
-                  if (rule.frequency === 'daily') nextDate = addDays(baseDate, 1);
-                  if (rule.frequency === 'weekly') nextDate = addWeeks(baseDate, 1);
-                  if (rule.frequency === 'monthly') nextDate = addMonths(baseDate, 1);
-                  if (rule.frequency === 'yearly') nextDate = addYears(baseDate, 1);
-
-                  updatedRecurring.push({
-                      ...rule,
-                      lastRunDate: new Date().toISOString(),
-                      nextDueDate: nextDate.toISOString()
-                  });
-              }
-          }
-      });
-
-      if (newRecTransactions.length > 0 || newRecReceivables.length > 0) {
-          dispatch({ type: 'PROCESS_RECURRING_UPDATES', payload: { transactions: newRecTransactions, receivables: newRecReceivables, updatedRecurring } });
-      }
 
       // --- DYNAMIC DEPRECIATION LOGIC ---
       const newDepTransactions: Transaction[] = [];
@@ -686,6 +576,121 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           }
       }
 
+      // --- RECURRING RULES (signature-guarded; pauses persist; next due date
+      // --- snaps past today so approvals never re-prompt) ---
+      const dueRules = recurringRules.filter(r => r.active && r.nextDueDate && isPast(parseISO(r.nextDueDate)));
+      const dueSig = dueRules.map(r => r.id + ':' + r.nextDueDate).sort().join('|');
+      if (dueRules.length === 0 || dueSig === lastRecSigRef.current || processingRecRef.current) return;
+
+      processingRecRef.current = true;
+      (async () => {
+          try {
+              const newRecTransactions: Transaction[] = [];
+              const newRecReceivables: Receivable[] = [];
+              const updatedRecurring: RecurringTransaction[] = [];
+              const step = (d: Date, rule: RecurringTransaction): Date =>
+                  rule.frequency === 'daily' ? addDays(d, 1)
+                  : rule.frequency === 'weekly' ? addWeeks(d, 1)
+                  : rule.frequency === 'monthly' ? addMonths(d, 1)
+                  : addYears(d, 1);
+
+              for (const rule of dueRules) {
+                  const dateStr = rule.nextDueDate.split('T')[0];
+                  const baseDate = new Date(dateStr + 'T00:00:00.000Z');
+
+                  if (rule.generationType === 'receivable') {
+                      const recDueDate = addDays(baseDate, rule.dueDays || 0).toISOString();
+                      const recId = Math.random().toString(36).substr(2, 9);
+                      const party = state.parties.find(p => p.id === rule.partyId);
+                      const partyLinkedAccount = party?.linkedAccountId;
+                      const rType = rule.type === 'income' ? 'receivable' : 'payable';
+                      const subType = rule.receivableType || (rule.type === 'income' ? 'invoice' : 'bill');
+
+                      newRecReceivables.push({
+                          id: recId,
+                          type: rType,
+                          subType: subType,
+                          partyName: party?.name || 'Recurring Contact',
+                          partyId: rule.partyId,
+                          targetAccountId: rule.accountId,
+                          amount: rule.amount,
+                          paidAmount: 0,
+                          originalAmount: rule.originalAmount,
+                          currency: rule.currency,
+                          issueDate: baseDate.toISOString(),
+                          dueDate: recDueDate,
+                          status: 'pending',
+                          notes: 'Auto-generated from Recurring: ' + (rule.note || ''),
+                          recurring: { active: rule.active, amount: rule.amount, frequency: rule.frequency, nextDueDate: rule.nextDueDate }
+                      });
+
+                      if (partyLinkedAccount) {
+                          newRecTransactions.push({
+                              id: Math.random().toString(36).substr(2, 9),
+                              date: baseDate.toISOString(),
+                              type: rule.type,
+                              amount: rule.amount,
+                              currency: rule.currency,
+                              originalAmount: rule.originalAmount,
+                              relatedPartyId: rule.partyId,
+                              source: rType === 'receivable' ? 'side_hustle' : 'personal',
+                              note: 'Accrual (Auto): ' + subType + ' Ref:' + recId,
+                              accountId: rType === 'receivable' ? partyLinkedAccount : rule.accountId,
+                              paymentAccountId: rType === 'receivable' ? rule.accountId : partyLinkedAccount,
+                              receivableId: recId,
+                              recurringRuleId: rule.id
+                          });
+                      }
+                  } else {
+                      const shouldRecognize = await confirmDialog({
+                          title: 'Recurring: ' + (rule.note || 'Auto Transaction'),
+                          message: rule.currency + ' ' + rule.amount + ' — was due ' + format(parseISO(rule.nextDueDate), 'dd MMM yyyy') + '.\n\nRecord it now, or pause this rule?',
+                          confirmLabel: 'Recognize now',
+                          cancelLabel: 'Pause rule',
+                      });
+                      if (shouldRecognize) {
+                          newRecTransactions.push({
+                              id: Math.random().toString(36).substr(2, 9),
+                              date: baseDate.toISOString(),
+                              type: rule.type,
+                              amount: rule.amount,
+                              currency: rule.currency,
+                              originalAmount: rule.originalAmount,
+                              accountId: rule.accountId,
+                              source: rule.source,
+                              paymentAccountId: rule.paymentAccountId,
+                              relatedPartyId: rule.partyId,
+                              note: 'Recurring: ' + (rule.note || 'Auto Transaction'),
+                              recurringRuleId: rule.id
+                          });
+                      } else {
+                          // Pause: no entry, no schedule change — persists via the dispatch below
+                          updatedRecurring.push({ ...rule, active: false });
+                          continue;
+                      }
+                  }
+
+                  // Advance past the missed period, then keep stepping until the
+                  // next occurrence is in the future — approvals never re-prompt.
+                  let nextDate = step(baseDate, rule);
+                  while (nextDate.getTime() <= now.getTime()) nextDate = step(nextDate, rule);
+                  updatedRecurring.push({
+                      ...rule,
+                      lastRunDate: new Date().toISOString(),
+                      nextDueDate: nextDate.toISOString()
+                  });
+              }
+
+              // ALWAYS dispatch when anything changed — pauses included. The old
+              // guard skipped this when no entries were generated, so cancellations
+              // never persisted and the same rules re-prompted forever.
+              if (newRecTransactions.length > 0 || newRecReceivables.length > 0 || updatedRecurring.length > 0) {
+                  dispatch({ type: 'PROCESS_RECURRING_UPDATES', payload: { transactions: newRecTransactions, receivables: newRecReceivables, updatedRecurring } });
+              }
+          } finally {
+              processingRecRef.current = false;
+          }
+      })();
   }, [state.accounts, state.assets, state.recurring, state.transactions.length]);
 
   // Push on state change (3s debounce). Failures retry with exponential backoff,
