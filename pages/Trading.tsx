@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { tradingService } from '../services/trading';
-import { TradingAccount, TradingCashflow, TradingSnapshot, TradingFxRate, TradingCategory, Account } from '../types';
+import { TradingAccount, TradingCashflow, TradingSnapshot, TradingFxRate, TradingSettings, TradingCategory, TradingTrade, Account } from '../types';
+import { TradingTerminal } from '../components/TradingTerminal';
 import { CURRENCIES } from '../constants';
 import { Modal } from '../components/ui/Modal';
 import { AnimatedNumber } from '../components/ui/AnimatedNumber';
@@ -78,6 +79,8 @@ export const Trading: React.FC = () => {
   const [tfDate, setTfDate] = useState(todayStr());
   const [tfNote, setTfNote] = useState('');
   const [categories, setCategories] = useState<TradingCategory[]>([]);
+  const [trades, setTrades] = useState<TradingTrade[] | null>(null);
+  const [terminalSettings, setTerminalSettings] = useState<TradingSettings | null>(null);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
@@ -111,25 +114,51 @@ export const Trading: React.FC = () => {
     }
   };
 
+  const handleAddTrade = useCallback(async (trade: Omit<TradingTrade, 'id' | 'user_id' | 'created_at'>) => {
+    if (!user) return;
+    await tradingService.createTrade(user.id, trade);
+    const trs = await tradingService.getTrades(user.id).catch(() => null);
+    setTrades(trs);
+  }, [user]);
+
+  const handleDeleteTrade = useCallback(async (id: string) => {
+    if (!user) return;
+    await tradingService.deleteTrade(user.id, id);
+    const trs = await tradingService.getTrades(user.id).catch(() => null);
+    setTrades(trs);
+  }, [user]);
+
+  const handleUpdateTarget = useCallback(async (target: number) => {
+    if (!user) return;
+    await tradingService.saveSettings(user.id, { monthly_profit_target: target });
+    const st = await tradingService.getSettings(user.id).catch(() => null);
+    if (st) setTerminalSettings(st);
+    showToast('Monthly target updated.');
+  }, [user]);
+
   const loadAll = useCallback(async () => {
     if (!user) return;
     setIsLoading(true);
     setNeedsMigration(false);
     setLoadError(null);
     try {
-      const [accs, flows, snaps, rates, settings, cats] = await Promise.all([
+      const [accs, flows, snaps, rates, settings, cats, trs] = await Promise.all([
         tradingService.getAccounts(user.id),
         tradingService.getCashflows(user.id),
         tradingService.getSnapshots(user.id),
         tradingService.getFxRates(user.id, baseCurrency),
         tradingService.getSettings(user.id),
         tradingService.getCategories(user.id),
+        // Trade journal is terminal-only — tolerate a pending migration
+        tradingService.getTrades(user.id).catch(() => null),
       ]);
       setAccounts(accs);
       setCashflows(flows);
       setSnapshots(snaps);
       setFxRates(rates);
       setCategories(cats);
+      setTrades(trs); // null = trading_trades migration pending
+      setTerminalSettings(settings);
       setLinkedGlAccountId(settings?.linked_gl_account_id ?? null);
       const draft: Record<string, string> = {};
       rates.forEach((r) => { draft[r.currency] = String(r.rate_to_base); });
@@ -876,6 +905,21 @@ export const Trading: React.FC = () => {
         )}
       </AnimatePresence>
 
+      {/* ===== Performance terminal ===== */}
+      <TradingTerminal
+        accounts={accounts}
+        snapshots={snapshots}
+        cashflows={cashflows}
+        trades={trades}
+        settings={terminalSettings}
+        fxRates={fxRates}
+        baseCurrency={baseCurrency}
+        onAddTrade={handleAddTrade}
+        onDeleteTrade={handleDeleteTrade}
+        onUpdateTarget={handleUpdateTarget}
+        onChanged={loadAll}
+      />
+
       {/* Chart of Accounts connection */}
       <div className="glass-card p-4 md:p-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -954,32 +998,6 @@ export const Trading: React.FC = () => {
             </div>
           </div>
         )}
-      </div>
-
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        <div className="glass-card p-3.5">
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><Landmark size={12} /> Total Capital</div>
-          <p className="font-mono text-base md:text-xl font-bold text-white mt-2 truncate"><AnimatedNumber value={totals.capitalBase} /></p>
-          <p className="text-[10px] text-gray-600 mt-0.5">{baseCurrency} • net deposits{archivedAccounts.length > 0 ? ` • incl. ${archivedAccounts.length} archived` : ''}</p>
-        </div>
-        <div className="glass-card p-3.5">
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><Wallet size={12} /> Balance Today</div>
-          <p className="font-mono text-base md:text-xl font-bold text-gold-400 mt-2 truncate"><AnimatedNumber value={totals.balanceBase} /></p>
-          <p className="text-[10px] text-gray-600 mt-0.5">{baseCurrency} • latest snapshots{archivedAccounts.length > 0 ? ' • incl. archived' : ''}</p>
-        </div>
-        <div className="glass-card p-3.5">
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">
-            {totals.pnlBase >= 0 ? <TrendingUp size={12} className="text-emerald-400" /> : <TrendingDown size={12} className="text-red-400" />} Net P/L
-          </div>
-          <div className="mt-2"><PnlCell value={totals.pnlBase} /></div>
-          <p className="text-[10px] text-gray-600 mt-0.5">{baseCurrency} • balance − capital</p>
-        </div>
-        <div className="glass-card p-3.5">
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><CandlestickChart size={12} /> ROI</div>
-          <p className={`font-mono text-base md:text-xl font-bold mt-2 ${totals.roi >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtPct(totals.roi)}</p>
-          <p className="text-[10px] text-gray-600 mt-0.5">portfolio return on capital</p>
-        </div>
       </div>
 
       {/* FX rates (collapsed by default) */}

@@ -71,3 +71,6 @@ skills-lock.json
 
 # Local backup exports (contain user financial data)
 backups/
+
+# MT5 agent credentials
+mt5-agent.env

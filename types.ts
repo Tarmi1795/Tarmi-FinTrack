@@ -263,7 +263,25 @@ export interface TradingFxRate {
 export interface TradingSettings {
   user_id: string;
   linked_gl_account_id?: string; // The "Trading Account" Account.id in the Chart of Accounts
+  monthly_profit_target?: number; // Monthly profit goal for the performance terminal
   updated_at?: string;
+}
+
+// Per-trade journal entry (performance terminal / day inspector)
+export interface TradingTrade {
+  id: string;
+  user_id?: string;
+  account_id: string;
+  trade_date: string; // YYYY-MM-DD
+  symbol: string; // traded asset (e.g. XAUUSD, BTCUSD, US30)
+  direction: 'buy' | 'sell';
+  entry_price?: number | null;
+  exit_price?: number | null;
+  profit_loss: number;
+  rr_ratio?: number | null;
+  session?: string | null; // London / New York / Tokyo / Sydney / Other
+  notes?: string;
+  created_at?: string;
 }
 
 // --- INVENTORY MODULE (mirrors Supabase tables directly) ---

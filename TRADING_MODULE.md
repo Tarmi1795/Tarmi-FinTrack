@@ -7,7 +7,10 @@ brokerage accounts (Binance, Exness, TradingView, prop/strategy accounts) each w
 
 ## Data Model (Supabase)
 
-Created by `supabase_trading_migration.sql` (run it in the Supabase SQL Editor):
+Created by `supabase_trading_migration.sql` (run it in the Supabase SQL Editor). Automated
+balance ingestion: `supabase_mt5_api_migration.sql` adds `mt5_push_balances` — an authenticated
+PostgREST RPC that lets an external automation push MT5 balances into `trading_snapshots`
+(balance-only, today-only, hashed API key in `trading_api_keys`). See `MT5_BALANCE_API.md`.
 
 | Table | Purpose |
 |---|---|
