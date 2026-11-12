@@ -755,7 +755,19 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
       {/* ===== Balance curve — full history ===== */}
       <div className="rounded-xl border border-slate-800/80 bg-slate-950/60 p-3 md:p-4">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Balance curve</p>
+          <div className="flex bg-slate-900 border border-slate-800 rounded-md p-0.5">
+            {([['balance', 'Balance'], ['growth', 'Growth']] as Array<['balance' | 'growth', string]>).map(([m, label]) => (
+              <button
+                key={m}
+                onClick={() => setCurveMode(m)}
+                className={`px-2.5 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                  curveMode === m ? 'bg-slate-700/80 text-white' : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <span className="text-[10px] font-mono text-slate-600">{scopeCurrency} · full history</span>
         </div>
         <ResponsiveContainer width="100%" height={220}>
