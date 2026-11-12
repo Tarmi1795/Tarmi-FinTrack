@@ -33,6 +33,15 @@ type ViewMode = 'calendar' | 'table';
 type DisplayMode = 'both' | 'roi' | 'pnl';
 
 const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// Compact form for tight mobile tiles: -394.52 → -395, -39,083 → -39.1k, -2.4M
+const fmtC = (n: number) => {
+  const s = n < 0 ? '-' : '';
+  const a = Math.abs(n);
+  if (a >= 1e6) return `${s}${(a / 1e6).toFixed(2)}M`;
+  if (a >= 1000) return `${s}${(a / 1000).toFixed(a >= 100000 ? 0 : 1)}k`;
+  if (a >= 100) return `${s}${a.toFixed(0)}`;
+  return `${s}${a.toFixed(2)}`;
+};
 const fmtQty = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const dayKey = (d: Date | string) => format(typeof d === 'string' ? parseISO(d) : d, 'yyyy-MM-dd');
@@ -417,7 +426,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
         key={key}
         onClick={() => cell && setInspectorDate(dk)}
         disabled={!hasData}
-        className={`relative min-h-[74px] p-2 rounded-md border text-left transition-all ${
+        className={`relative min-h-[62px] p-1.5 sm:min-h-[74px] sm:p-2 rounded-md border text-left transition-all ${
           hasData
             ? pos ? 'border-emerald-500/30 bg-emerald-500/[0.05] hover:border-emerald-400/60'
               : neg ? 'border-rose-500/30 bg-rose-500/[0.05] hover:border-rose-400/60'
@@ -426,7 +435,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
         }`}
       >
         <div className="flex items-center justify-between">
-          <span className={`text-[11px] font-mono ${isToday ? 'text-gold-300 font-bold' : 'text-slate-400'}`}>
+          <span className={`text-[10px] sm:text-[11px] font-mono ${isToday ? 'text-gold-300 font-bold' : 'text-slate-400'}`}>
             {format(date, 'd')}
           </span>
           <div className="flex gap-1">
@@ -435,30 +444,32 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
           </div>
         </div>
         {hasData && (
-          <div className="mt-1.5 font-mono">
+          <div className="mt-1 sm:mt-1.5 font-mono">
             {displayMode === 'roi' ? (
               // ROI-emphasized: big %, but the P&L amount is always shown too
               <>
-                <div className={`text-sm font-bold ${pnlCls(cell.pnl)}`}>
+                <div className={`text-xs sm:text-sm font-bold ${pnlCls(cell.pnl)}`}>
                   {roiOf(cell.pnl, cell.start) >= 0 ? '+' : ''}{roiOf(cell.pnl, cell.start).toFixed(2)}%
                 </div>
-                <div className={`text-[10px] ${pnlCls(cell.pnl)} opacity-80`}>
-                  {cell.pnl > 0 ? '+' : ''}{fmt(cell.pnl)}
+                <div className={`text-[9px] sm:text-[10px] ${pnlCls(cell.pnl)} opacity-80`}>
+                  <span className="sm:hidden">{cell.pnl > 0 ? '+' : ''}{fmtC(cell.pnl)}</span>
+                  <span className="hidden sm:inline">{cell.pnl > 0 ? '+' : ''}{fmt(cell.pnl)}</span>
                 </div>
               </>
             ) : (
               <>
-                <div className={`text-xs font-bold ${pnlCls(cell.pnl)}`}>
-                  {cell.pnl > 0 ? '+' : ''}{fmt(cell.pnl)}
+                <div className={`text-[10px] sm:text-xs font-bold ${pnlCls(cell.pnl)}`}>
+                  <span className="sm:hidden">{cell.pnl > 0 ? '+' : ''}{fmtC(cell.pnl)}</span>
+                  <span className="hidden sm:inline">{cell.pnl > 0 ? '+' : ''}{fmt(cell.pnl)}</span>
                 </div>
                 {displayMode !== 'pnl' && (
-                  <div className={`text-[10px] ${pnlCls(cell.pnl)} ${displayMode === 'both' ? 'opacity-80' : 'text-sm font-bold'}`}>
+                  <div className={`text-[9px] sm:text-[10px] ${pnlCls(cell.pnl)} opacity-80`}>
                     {roiOf(cell.pnl, cell.start) >= 0 ? '+' : ''}{roiOf(cell.pnl, cell.start).toFixed(2)}%
                   </div>
                 )}
               </>
             )}
-            <div className="text-[9px] text-slate-500 mt-1">{cell.tradeCount} trade{cell.tradeCount === 1 ? '' : 's'}</div>
+            <div className="hidden sm:block text-[9px] text-slate-500 mt-1">{cell.tradeCount} trade{cell.tradeCount === 1 ? '' : 's'}</div>
           </div>
         )}
       </button>
@@ -488,7 +499,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
   };
 
   const segBtn = (active: boolean) =>
-    `px-2.5 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors ${
+    `px-2 py-2 sm:px-2.5 sm:py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors ${
       active ? 'bg-slate-700/80 text-white' : 'text-slate-500 hover:text-slate-300'
     }`;
 
@@ -496,16 +507,16 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
 
   return (
     <div className="rounded-xl border border-slate-800/80 bg-slate-950/60 overflow-hidden">
-      {/* ===== KPI banner ===== */}
-      <div className="grid grid-cols-1 md:grid-cols-3 border-b border-slate-800/80 divide-y md:divide-y-0 md:divide-x divide-slate-800/80">
+      {/* ===== KPI banner — swipe carousel on mobile, 3-col grid on md+ ===== */}
+      <div className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory md:grid md:grid-cols-3 border-b border-slate-800/80 divide-x divide-slate-800/80">
         {/* Initial investment */}
-        <div className="p-4 md:p-5">
+        <div className="snap-start shrink-0 w-[82%] sm:w-[52%] md:w-auto p-4 md:p-5">
           <p className={kpiLabel}>Initial investment</p>
           <div className="flex items-baseline gap-2 mt-2 flex-wrap">
             <AnimatedNumber
               value={allTime.start}
               format={v => `${scopeCurrency} ${fmt(v)}`}
-              className="text-xl md:text-2xl font-bold text-white"
+              className="text-lg sm:text-xl md:text-2xl font-bold text-white"
             />
           </div>
           <div className="mt-2 flex items-center justify-between gap-2 text-xs">
@@ -529,12 +540,12 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
         </div>
 
         {/* Period P&L */}
-        <div className="p-4 md:p-5">
+        <div className="snap-start shrink-0 w-[82%] sm:w-[52%] md:w-auto p-4 md:p-5">
           <div className="flex items-center justify-between">
             <p className={kpiLabel}>Period P&amp;L</p>
             <span className="text-[10px] font-mono text-slate-500">{rangeLabel}</span>
           </div>
-          <div className="mt-2 text-xl md:text-2xl font-bold">
+          <div className="mt-2 text-lg sm:text-xl md:text-2xl font-bold">
             {periodPnlBlock('')}
           </div>
           <div className="mt-2 flex items-center justify-between text-xs">
@@ -551,7 +562,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
         </div>
 
         {/* Monthly target & consistency */}
-        <div className="p-4 md:p-5">
+        <div className="snap-start shrink-0 w-[82%] sm:w-[52%] md:w-auto p-4 md:p-5">
           <div className="flex items-center justify-between">
             <p className={kpiLabel}>Monthly target &amp; consistency</p>
             <button
@@ -627,8 +638,8 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
         </div>
       </div>
 
-      {/* ===== Controls ===== */}
-      <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-slate-800/80 bg-slate-950/40">
+      {/* ===== Controls — two swipeable rows on mobile ===== */}
+      <div className="px-2 sm:px-4 py-2 sm:py-3 border-b border-slate-800/80 bg-slate-950/40 space-y-2">
         {/* Account scope pills */}
         <div className="flex items-center gap-1 overflow-x-auto no-scrollbar max-w-full">
           <button
@@ -653,9 +664,9 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
           ))}
         </div>
 
-        <div className="flex items-center gap-2 ml-auto flex-wrap">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar md:ml-auto md:flex-wrap md:justify-end md:overflow-visible">
           {/* Timeframe */}
-          <div className="flex bg-slate-900 border border-slate-800 rounded-md p-0.5">
+          <div className="flex shrink-0 bg-slate-900 border border-slate-800 rounded-md p-0.5">
             {(['week', 'month', 'year', 'all'] as Timeframe[]).map(tf => (
               <button
                 key={tf}
@@ -669,7 +680,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
 
           {/* Month / week stepper */}
           {timeframe !== 'all' && (
-            <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-md px-1">
+            <div className="flex shrink-0 items-center gap-1 bg-slate-900 border border-slate-800 rounded-md px-1">
               <button onClick={() => stepAnchor(-1)} className="p-1.5 text-slate-400 hover:text-white rounded active:scale-90 transition-transform" aria-label="Previous">
                 <ChevronLeft size={14} />
               </button>
@@ -691,7 +702,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
 
           {/* View toggle (calendar only exists for month/week) */}
           {(timeframe === 'month' || timeframe === 'week') && (
-            <div className="flex bg-slate-900 border border-slate-800 rounded-md p-0.5">
+            <div className="flex shrink-0 bg-slate-900 border border-slate-800 rounded-md p-0.5">
               <button onClick={() => setView('calendar')} className={`p-1.5 rounded ${view === 'calendar' ? segBtn(true) : 'text-slate-500 hover:text-slate-300'}`} aria-label="Calendar view">
                 <CalendarDays size={13} />
               </button>
@@ -702,7 +713,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
           )}
 
           {/* Display mode */}
-          <div className="flex bg-slate-900 border border-slate-800 rounded-md p-0.5">
+          <div className="flex shrink-0 bg-slate-900 border border-slate-800 rounded-md p-0.5">
             {([['both', 'P&L + ROI'], ['roi', 'ROI'], ['pnl', 'P&L']] as Array<[DisplayMode, string]>).map(([m, label]) => (
               <button key={m} onClick={() => setDisplayMode(m)} className={segBtn(displayMode === m)}>{label}</button>
             ))}
@@ -720,19 +731,22 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
 
         {(timeframe === 'month' || timeframe === 'week') && view === 'calendar' ? (
           <>
-            <div className="grid grid-cols-7 gap-1.5 mb-1.5">
+            <div className="grid grid-cols-7 gap-1 sm:gap-1.5 mb-1 sm:mb-1.5">
               {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
-                <div key={d} className="text-center text-[9px] font-bold uppercase tracking-widest text-slate-600 py-1">{d}</div>
+                <div key={d} className="text-center text-[9px] font-bold uppercase tracking-widest text-slate-600 py-1">
+                  <span className="sm:hidden">{d[0]}</span>
+                  <span className="hidden sm:inline">{d}</span>
+                </div>
               ))}
             </div>
-            <div className="grid grid-cols-7 gap-1.5">
+            <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
               {calendarCells.map(c => dayTile(c.date, c.key))}
             </div>
           </>
         ) : (
           <div className="border border-slate-800/80 rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
+              <table className="w-full text-left min-w-[560px]">
                 <thead>
                   <tr className="bg-slate-900/80 border-b border-slate-800 text-[9px] font-bold uppercase tracking-widest text-slate-500">
                     <th className="px-3 py-2.5">Date</th>
