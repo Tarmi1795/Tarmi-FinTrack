@@ -70,6 +70,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
   const [anchor, setAnchor] = useState<Date>(new Date());
   const [inspectorDate, setInspectorDate] = useState<string | null>(null);
   const [editingTarget, setEditingTarget] = useState(false);
+  const [curveMode, setCurveMode] = useState<'balance' | 'growth'>('balance');
   const [targetDraft, setTargetDraft] = useState('');
   const [isSavingTarget, setIsSavingTarget] = useState(false);
 
@@ -292,12 +293,57 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
     return format(anchor, 'yyyy');
   }, [timeframe, anchor]);
 
-  // --- Balance curve data (full history, all recorded days) ---
-  const curveData = useMemo(() => (
-    Array.from(mergedSeries.entries())
+  // --- Curve data (full history, all recorded days) ---
+  const curveData = useMemo(() => {
+    const rows = Array.from(mergedSeries.entries())
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, c]) => ({ date, balance: c.close }))
-  ), [mergedSeries]);
+      .map(([date, c]) => ({ date, balance: c.close, pnl: c.pnl, start: c.start }));
+
+    if (curveMode === 'balance') {
+      return rows.map(r => ({ date: r.date, balance: r.balance }));
+    }
+
+    // Growth curve: pure trading performance. Starts at total capital (net
+    // deposits) and applies each day's pure trading P&L — deposits and
+    // withdrawals never move this line. If the recorded balance starts BELOW
+    // capital (losses incurred before records began), that backdated gap is
+    // pro-rated linearly across the days between the first deposit and the
+    // first recorded balance; from the first recorded day onward the actual
+    // daily P&L applies.
+    const capital = scopeCapital;
+    const growth: Array<{ date: string; balance: number }> = [];
+    const firstRow = rows[0];
+    if (!firstRow) return growth;
+
+    const backGap = r2(capital - firstRow.start);
+    const earliestFlow = cashflows.length
+      ? cashflows.map(f => f.flow_date).sort()[0]
+      : null;
+    let backDays = 0;
+    if (earliestFlow && earliestFlow < firstRow.date) {
+      backDays = Math.max(1, Math.round(
+        (parseISO(firstRow.date).getTime() - parseISO(earliestFlow).getTime()) / 86400000));
+    }
+
+    if (backGap !== 0 && backDays > 0) {
+      // Backdated pro-rated segment: capital on the deposit day, ramping to
+      // the first recorded balance (losses spread evenly across the gap)
+      for (let i = 0; i < backDays; i++) {
+        const d = format(addDays(parseISO(earliestFlow!), i), 'yyyy-MM-dd');
+        if (d >= firstRow.date) break;
+        growth.push({ date: d, balance: r2(capital - (backGap * i / backDays)) });
+      }
+    }
+
+    let value = backGap !== 0 && backDays > 0 ? firstRow.start : capital;
+    if (growth.length > 0) value = growth[growth.length - 1].balance;
+    // wait — value should continue from the last backdated point
+    for (const r of rows) {
+      value = r2(value + r.pnl);
+      growth.push({ date: r.date, balance: value });
+    }
+    return growth;
+  }, [mergedSeries, curveMode, scopeCapital, cashflows]);
 
   // --- Inspector ---
   const inspectorCell = inspectorDate ? mergedSeries.get(inspectorDate) : null;
@@ -740,7 +786,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
             <Tooltip
               contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: 8, fontSize: 12, fontFamily: 'monospace' }}
               labelStyle={{ color: '#D4AF37' }}
-              formatter={(v: number) => [`${scopeCurrency} ${fmt(v)}`, 'Balance']}
+              formatter={(v: number) => [`${scopeCurrency} ${fmt(v)}`, curveMode === 'growth' ? 'Growth' : 'Balance']}
             />
             <Area
               type="monotone"
