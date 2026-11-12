@@ -303,46 +303,23 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
       return rows.map(r => ({ date: r.date, balance: r.balance }));
     }
 
-    // Growth curve: pure trading performance. Starts at total capital (net
-    // deposits) and applies each day's pure trading P&L — deposits and
-    // withdrawals never move this line. If the recorded balance starts BELOW
-    // capital (losses incurred before records began), that backdated gap is
-    // pro-rated linearly across the days between the first deposit and the
-    // first recorded balance; from the first recorded day onward the actual
-    // daily P&L applies.
+    // Growth curve: pure trading performance anchored to total capital.
+    // capital → (capital + total trading P&L) = current actual balance.
+    // Losses that predate daily tracking are pro-rated evenly across the
+    // recorded days, so the line reconciles to today's balance and every
+    // deposit/withdrawal stays out of the trading outcome.
     const capital = scopeCapital;
-    const growth: Array<{ date: string; balance: number }> = [];
-    const firstRow = rows[0];
-    if (!firstRow) return growth;
+    const last = rows[rows.length - 1];
+    const totalPnL = r2(last.balance - capital);
+    const recordedPnL = r2(rows.reduce((s, r) => s + r.pnl, 0));
+    const backPnL = r2(totalPnL - recordedPnL); // pre-tracking losses/gains, spread per day
+    const perDay = rows.length > 0 ? backPnL / rows.length : 0;
 
-    const backGap = r2(capital - firstRow.start);
-    const earliestFlow = cashflows.length
-      ? cashflows.map(f => f.flow_date).sort()[0]
-      : null;
-    let backDays = 0;
-    if (earliestFlow && earliestFlow < firstRow.date) {
-      backDays = Math.max(1, Math.round(
-        (parseISO(firstRow.date).getTime() - parseISO(earliestFlow).getTime()) / 86400000));
-    }
-
-    if (backGap !== 0 && backDays > 0) {
-      // Backdated pro-rated segment: capital on the deposit day, ramping to
-      // the first recorded balance (losses spread evenly across the gap)
-      for (let i = 0; i < backDays; i++) {
-        const d = format(addDays(parseISO(earliestFlow!), i), 'yyyy-MM-dd');
-        if (d >= firstRow.date) break;
-        growth.push({ date: d, balance: r2(capital - (backGap * i / backDays)) });
-      }
-    }
-
-    let value = backGap !== 0 && backDays > 0 ? firstRow.start : capital;
-    if (growth.length > 0) value = growth[growth.length - 1].balance;
-    // wait — value should continue from the last backdated point
-    for (const r of rows) {
-      value = r2(value + r.pnl);
-      growth.push({ date: r.date, balance: value });
-    }
-    return growth;
+    let value = capital;
+    return rows.map(r => {
+      value = r2(value + r.pnl + perDay);
+      return { date: r.date, balance: value };
+    });
   }, [mergedSeries, curveMode, scopeCapital, cashflows]);
 
   // --- Inspector ---
