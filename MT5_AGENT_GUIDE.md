@@ -63,6 +63,20 @@ POST {SUPABASE_URL}/rest/v1/rpc/mt5_post_trade
 ```
 Returns the new trade uuid. Appears in the Day Trade Inspector instantly.
 
+### `mt5_push_cashflow`
+```
+POST {SUPABASE_URL}/rest/v1/rpc/mt5_push_cashflow
+{ "p_user_id": "<TARGET_USER_ID>",
+  "p_account_id": "<account uuid>",
+  "p_trade_date": "2026-11-12",
+  "p_flow_type": "deposit" | "withdrawal",
+  "p_amount": 500,
+  "p_note": "manual top-up" }
+```
+Records a deposit/withdrawal event. Appears in the performance calendar as a
+tracked movement (never mixed into P&L). Amount is always positive —
+direction is carried by `p_flow_type`.
+
 ### `mt5_list_accounts`
 ```
 POST {SUPABASE_URL}/rest/v1/rpc/mt5_list_accounts
