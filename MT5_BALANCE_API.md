@@ -19,7 +19,8 @@
 4. **Currency stays native.** Balances are stored in the account's own currency; an optional
    `currency` field is checked against it (`currency_mismatch` → row skipped).
 5. **One snapshot per account per day** — `ON CONFLICT (account_id, snap_date) DO UPDATE`.
-   `fx_rate` is always NULL; the app converts at its current rates.
+   The API never writes `fx_rate` (fresh rows stay NULL; an existing row's rate is preserved —
+   informational only). The app converts at its current rates.
 
 ## Endpoint
 
@@ -144,8 +145,9 @@ URL/anon key from `.env`. Exit 0 = all rows written, 2 = some rows skipped (chec
 
 ## Key management
 
-- Plaintext key: `secrets/mt5-api-key.txt` (gitignored). Only its sha256 hash is in the DB
-  (`public.trading_api_keys`, RLS-locked, reachable solely by the push function).
+- Plaintext key: `secrets/mt5-api-key.txt` (gitignored; mirrored in `mt5-agent.env` as
+  `MT5_API_KEY`). Only its sha256 hash is in the DB (`public.trading_api_keys`, RLS-locked,
+  reachable solely by the push function).
 - Create another key (e.g. for a second machine):
   ```sql
   INSERT INTO public.trading_api_keys (user_id, label, key_hash)
