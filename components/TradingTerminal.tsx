@@ -650,13 +650,13 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
           >
             Portfolio
           </button>
-          {accounts.map(a => (
+          {accounts.filter(a => a.is_active !== false).map(a => (
             <button
               key={a.id}
               onClick={() => setScope(a.id)}
               className={`px-2.5 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider border transition-colors whitespace-nowrap ${
                 scope === a.id ? 'bg-slate-700/80 border-slate-600 text-white' : 'border-slate-800 text-slate-500 hover:text-slate-300'
-              } ${a.is_active === false ? 'opacity-60' : ''}`}
+              }`}
               title={a.is_active === false ? 'Archived' : undefined}
             >
               {a.name}
