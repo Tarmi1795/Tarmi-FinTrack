@@ -116,16 +116,24 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
         const flowsD = r2(flowsByDate.get(d) || 0);
         const snap = snapMap.get(d);
         const tinfo = tradesByDate.get(d);
+        const isInit = prevClose === null;
         let close: number;
         let pnl: number;
         if (snap) {
           close = Number(snap.balance);
-          pnl = tinfo ? tinfo.pnl : (prevClose === null ? 0 : r2(close - prevClose - flowsD));
+          if (isInit) {
+            // Opening day: the gap between the first recorded balance and the
+            // deposits made up to that day is real trading history — count it,
+            // so the day-sum telescopes to (balance − capital) over any range
+            // that covers the account's full history.
+            pnl = r2(close - flowsD);
+          } else {
+            pnl = tinfo ? tinfo.pnl : r2(close - prevClose - flowsD);
+          }
         } else {
           pnl = tinfo ? tinfo.pnl : 0;
           close = r2((prevClose ?? 0) + flowsD + pnl);
         }
-        const isInit = prevClose === null;
         const start = isInit ? close : prevClose;
         series.set(d, {
           date: d,
@@ -228,9 +236,15 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
     if (activeDays.length === 0) return { pnl: 0, ret: 0, start: 0 };
     const first = mergedSeries.get(activeDays[0])!;
     const pnl = r2(activeDays.reduce((s, d) => s + mergedSeries.get(d)!.pnl, 0));
-    const base = first.start || first.close;
+    // If the range covers the scope's entire history (e.g. Year 2026 for a
+    // trader who started Sept 2026), the period must reconcile with the
+    // capital-anchored all-time figure — measure ROI against capital, not the
+    // (meaninglessly small) opening balance.
+    const allDates = Array.from(mergedSeries.keys()).sort();
+    const coversAllHistory = allDates.length > 0 && activeDays[0] <= allDates[0];
+    const base = coversAllHistory && scopeCapital !== 0 ? scopeCapital : (first.start || first.close);
     return { pnl, ret: roiOf(pnl, base), start: base };
-  }, [activeDays, mergedSeries, timeframe, allTime]);
+  }, [activeDays, mergedSeries, timeframe, allTime, scopeCapital]);
 
   const monthStats = useMemo(() => {
     const monthPrefix = format(anchor, 'yyyy-MM');
