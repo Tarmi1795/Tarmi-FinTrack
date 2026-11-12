@@ -3,6 +3,11 @@
 This guide describes how your MT5 AI agent connects to Tarmi FinTrack and
 pushes balances/trades into the Trading module.
 
+> **Balance-only alternative:** if the agent only needs to push daily balances (no trades),
+> the lighter API-key endpoint `mt5_push_balances` (see `MT5_BALANCE_API.md`) does the same
+> snapshot upsert with a single hashed key, batch support and a dry-run flag — no agent login
+> required. Use the full agent flow below when it should also post trades or list accounts.
+
 ## 1. Environment
 
 All credentials and identifiers live in `mt5-agent.env` (gitignored):

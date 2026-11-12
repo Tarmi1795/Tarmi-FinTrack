@@ -155,7 +155,15 @@ URL/anon key from `.env`. Exit 0 = all rows written, 2 = some rows skipped (chec
 - Rotate/revoke: `UPDATE public.trading_api_keys SET is_active = false WHERE label = 'mt5';`
 - `last_used_at` on the key row shows the last successful call.
 
-## Relationship to the screenshot workflow
+## Relationship to the other MT5 integration
+
+`MT5_AGENT_GUIDE.md` documents the **full MT5 agent** (Supabase-auth `agent` user, balance +
+trades + account listing, feeding the TradingTerminal trade journal). This doc's endpoint is the
+lighter **balance-only pusher**: hashed API key (no JWT/refresh handling), batch updates,
+dry-run, and no date parameter (past dates structurally impossible). Use either for balances —
+they write the same daily snapshots — but pick one per machine/agent; the agent route is needed
+if it should also post trades. Both require the migrations to be applied (see Prerequisites in
+each guide).
 
 `VANTAGE_DAILY_PROMPT.md` (paste-screenshot) remains for manual/screenshot syncs and for the
 zero-absent-strategies rule. This API is push-only: strategies you don't send are left exactly
