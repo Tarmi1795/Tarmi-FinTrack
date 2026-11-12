@@ -267,23 +267,6 @@ export interface TradingSettings {
   updated_at?: string;
 }
 
-// Per-trade journal entry (performance terminal / day inspector)
-export interface TradingTrade {
-  id: string;
-  user_id?: string;
-  account_id: string;
-  trade_date: string; // YYYY-MM-DD
-  symbol: string; // traded asset (e.g. XAUUSD, BTCUSD, US30)
-  direction: 'buy' | 'sell';
-  entry_price?: number | null;
-  exit_price?: number | null;
-  profit_loss: number;
-  rr_ratio?: number | null;
-  session?: string | null; // London / New York / Tokyo / Sydney / Other
-  notes?: string;
-  created_at?: string;
-}
-
 // --- INVENTORY MODULE (mirrors Supabase tables directly) ---
 
 export interface InventoryItem {

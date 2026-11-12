@@ -6,15 +6,13 @@ import {
   addDays, addMonths, addWeeks, addYears, startOfYear, endOfYear,
   isSameDay, isAfter, isValid,
 } from 'date-fns';
-import { ChevronLeft, ChevronRight, CalendarDays, Table2, Trash2, Plus, Loader2, X, TrendingUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, Table2, X, Loader2 } from 'lucide-react';
 import { useFinance } from '../context/FinanceContext';
 import { AnimatedNumber } from './ui/AnimatedNumber';
 import { Modal } from './ui/Modal';
-import { SearchableSelect } from './ui/SearchableSelect';
-import { confirmDialog } from './ui/ConfirmDialog';
 import {
   TradingAccount, TradingCashflow, TradingSnapshot, TradingFxRate,
-  TradingSettings, TradingTrade,
+  TradingSettings,
 } from '../types';
 
 interface DayCell {
@@ -23,7 +21,6 @@ interface DayCell {
   pnl: number;
   close: number;
   flows: number;
-  tradeCount: number;
   isInit: boolean;
 }
 
@@ -54,31 +51,23 @@ interface TradingTerminalProps {
   accounts: TradingAccount[];
   snapshots: TradingSnapshot[];
   cashflows: TradingCashflow[];
-  trades: TradingTrade[] | null; // null = trading_trades table not migrated yet
   settings: TradingSettings | null;
   fxRates: TradingFxRate[];
   baseCurrency: string;
-  onAddTrade: (trade: Omit<TradingTrade, 'id' | 'user_id' | 'created_at'>) => Promise<void>;
-  onDeleteTrade: (id: string) => Promise<void>;
   onUpdateTarget: (target: number) => Promise<void>;
-  onChanged: () => void;
 }
 
 export const TradingTerminal: React.FC<TradingTerminalProps> = ({
-  accounts, snapshots, cashflows, trades, settings, fxRates, baseCurrency,
-  onAddTrade, onDeleteTrade, onUpdateTarget, onChanged,
+  accounts, snapshots, cashflows, settings, fxRates, baseCurrency,
+  onUpdateTarget,
 }) => {
   const navigate = useNavigate();
-  const { user } = useFinance();
   const [scope, setScope] = useState<Scope>('portfolio');
   const [timeframe, setTimeframe] = useState<Timeframe>('month');
   const [view, setView] = useState<ViewMode>('calendar');
   const [displayMode, setDisplayMode] = useState<DisplayMode>('both');
   const [anchor, setAnchor] = useState<Date>(new Date());
   const [inspectorDate, setInspectorDate] = useState<string | null>(null);
-  const [showAddTrade, setShowAddTrade] = useState(false);
-  const [savingTrade, setSavingTrade] = useState(false);
-  const [tradeError, setTradeError] = useState<string | null>(null);
   const [editingTarget, setEditingTarget] = useState(false);
   const [targetDraft, setTargetDraft] = useState('');
   const [isSavingTarget, setIsSavingTarget] = useState(false);
@@ -103,20 +92,9 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
       cashflows.filter(f => f.account_id === acc.id).forEach(f => {
         flowsByDate.set(f.flow_date, (flowsByDate.get(f.flow_date) || 0) + (f.flow_type === 'deposit' ? f.amount : -f.amount));
       });
-      const tradesFor = trades || [];
-      const tradesByDate = new Map<string, { count: number; pnl: number; trades: TradingTrade[] }>();
-      tradesFor.filter(t => t.account_id === acc.id).forEach(t => {
-        const cur = tradesByDate.get(t.trade_date) || { count: 0, pnl: 0, trades: [] };
-        cur.count += 1;
-        cur.pnl += t.profit_loss;
-        cur.trades.push(t);
-        tradesByDate.set(t.trade_date, cur);
-      });
-
       const dates = Array.from(new Set([
         ...snaps.map(s => s.snap_date),
         ...flowsByDate.keys(),
-        ...tradesByDate.keys(),
       ])).sort();
 
       const series = new Map<string, DayCell>();
@@ -124,7 +102,6 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
       for (const d of dates) {
         const flowsD = r2(flowsByDate.get(d) || 0);
         const snap = snapMap.get(d);
-        const tinfo = tradesByDate.get(d);
         const isInit = prevClose === null;
         let close: number;
         let pnl: number;
@@ -137,11 +114,10 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
             // that covers the account's full history.
             pnl = r2(close - flowsD);
           } else {
-            pnl = tinfo ? tinfo.pnl : r2(close - prevClose - flowsD);
+            pnl = r2(close - prevClose - flowsD);
           }
         } else {
-          pnl = tinfo ? tinfo.pnl : 0;
-          close = r2((prevClose ?? 0) + flowsD + pnl);
+          close = r2((prevClose ?? 0) + flowsD);
         }
         const start = isInit ? close : prevClose;
         series.set(d, {
@@ -150,7 +126,6 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
           pnl: r2(pnl),
           close: r2(close),
           flows: flowsD,
-          tradeCount: tinfo?.count || 0,
           isInit,
         });
         prevClose = close;
@@ -158,7 +133,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
       out[acc.id] = series;
     }
     return out;
-  }, [accounts, snapshots, cashflows, trades, rateFor]);
+  }, [accounts, snapshots, cashflows, rateFor]);
 
   // --- Merged scope series (converted to base currency) ---
   const mergedSeries = useMemo(() => {
@@ -173,7 +148,6 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
           cur.pnl = r2(cur.pnl + cell.pnl * rate);
           cur.close = r2(cur.close + cell.close * rate);
           cur.flows = r2(cur.flows + cell.flows * rate);
-          cur.tradeCount += cell.tradeCount;
         } else {
           merged.set(d, {
             date: d,
@@ -181,7 +155,6 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
             pnl: r2(cell.pnl * rate),
             close: r2(cell.close * rate),
             flows: r2(cell.flows * rate),
-            tradeCount: cell.tradeCount,
             isInit: cell.isInit,
           });
         }
@@ -320,74 +293,20 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
 
   // --- Inspector ---
   const inspectorCell = inspectorDate ? mergedSeries.get(inspectorDate) : null;
+  const scopeAccountIds = useMemo(() => (
+    scope === 'portfolio' ? accounts.map(a => a.id) : [scope]
+  ), [scope, accounts]);
   const scopeAccounts = useMemo(() => (
     scope === 'portfolio'
       ? accounts.filter(a => a.is_active !== false).map(a => ({ id: a.id, label: a.name, subLabel: a.currency }))
       : []
   ), [scope, accounts]);
-  const inspectorTrades = useMemo(() => {
-    if (!trades || !inspectorDate) return [];
-    return trades.filter(t =>
-      t.trade_date === inspectorDate && (scope === 'portfolio' || t.account_id === scope));
-  }, [trades, inspectorDate, scope]);
 
-  // --- Trade form ---
-  const emptyTradeForm = {
-    account_id: scope !== 'portfolio' ? scope : '',
-    symbol: '',
-    direction: 'buy' as 'buy' | 'sell',
-    entry: '',
-    exit: '',
-    profit: '',
-    rr: '',
-    session: 'London',
-    notes: '',
-  };
-  const [tradeForm, setTradeForm] = useState({ ...emptyTradeForm });
-  const openAddTrade = () => {
-    setTradeForm({ ...emptyTradeForm, account_id: scope !== 'portfolio' ? scope : (scopeAccounts[0]?.id || '') });
-    setTradeError(null);
-    setShowAddTrade(true);
-  };
-  const handleSaveTrade = async () => {
-    if (!user) return;
-    if (!tradeForm.account_id) { setTradeError('Select the trading account.'); return; }
-    if (!tradeForm.symbol.trim()) { setTradeError('Traded asset is required.'); return; }
-    const pnl = Number(tradeForm.profit);
-    if (tradeForm.profit.trim() === '' || isNaN(pnl)) { setTradeError('Profit / loss is required (0 for breakeven).'); return; }
-    setSavingTrade(true);
-    setTradeError(null);
-    try {
-      await onAddTrade({
-        account_id: tradeForm.account_id,
-        trade_date: inspectorDate!,
-        symbol: tradeForm.symbol.trim().toUpperCase(),
-        direction: tradeForm.direction,
-        entry_price: tradeForm.entry.trim() === '' ? null : Number(tradeForm.entry),
-        exit_price: tradeForm.exit.trim() === '' ? null : Number(tradeForm.exit),
-        profit_loss: r2(pnl),
-        rr_ratio: tradeForm.rr.trim() === '' ? null : Number(tradeForm.rr),
-        session: tradeForm.session || null,
-        notes: tradeForm.notes.trim() || null,
-      });
-      setShowAddTrade(false);
-      setTradeForm({ ...emptyTradeForm, account_id: tradeForm.account_id });
-    } catch (e: any) {
-      setTradeError(e?.message || 'Failed to save trade.');
-    } finally {
-      setSavingTrade(false);
-    }
-  };
-  const handleDeleteTrade = async (t: TradingTrade) => {
-    const ok = await confirmDialog({
-      title: `Delete ${t.symbol} trade?`,
-      message: `${t.direction === 'buy' ? 'Buy' : 'Sell'} ${t.symbol} — P/L ${fmt(t.profit_loss)} will be permanently removed.`,
-      confirmLabel: 'Delete',
-      danger: true,
-    });
-    if (!ok) return;
-    await onDeleteTrade(t.id);
-  };
+  const inspectorFlows = useMemo(() => {
+    if (!inspectorDate) return [];
+    return cashflows.filter(f =>
+      f.flow_date === inspectorDate && scopeAccountIds.includes(f.account_id));
+  }, [cashflows, inspectorDate, scopeAccountIds]);
 
   // --- Render helpers ---
   const scopeCurrency = scope === 'portfolio' ? baseCurrency : accounts.find(a => a.id === scope)?.currency || baseCurrency;
@@ -469,7 +388,6 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
                 )}
               </>
             )}
-            <div className="hidden sm:block text-[9px] text-slate-500 mt-1">{cell.tradeCount} trade{cell.tradeCount === 1 ? '' : 's'}</div>
           </div>
         )}
       </button>
@@ -493,7 +411,6 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
           {roiOf(c.pnl, c.start) >= 0 ? '+' : ''}{roiOf(c.pnl, c.start).toFixed(2)}%
         </td>
         <td className="px-3 py-2.5 text-right font-mono text-xs text-slate-200 tabular-nums">{fmt(c.close)}</td>
-        <td className="px-3 py-2.5 text-right font-mono text-[10px] text-slate-500">{c.tradeCount}</td>
       </tr>
     );
   };
@@ -550,7 +467,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
           </div>
           <div className="mt-2 flex items-center justify-between text-xs">
             <span className="text-slate-500 font-mono">
-              {activeDays.filter(d => (mergedSeries.get(d)!.pnl !== 0 || mergedSeries.get(d)!.tradeCount > 0)).length} active days
+              {activeDays.length} recorded days
             </span>
             <span className={`font-mono font-bold px-2 py-0.5 rounded-md text-[11px] border ${
               period.ret >= 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
@@ -723,12 +640,6 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
 
       {/* ===== Body ===== */}
       <div className="p-3 md:p-4">
-        {trades === null && (
-          <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
-            Trade journal unavailable — run <span className="font-mono">supabase_trading_terminal_migration.sql</span> in the Supabase SQL Editor, then refresh.
-          </div>
-        )}
-
         {(timeframe === 'month' || timeframe === 'week') && view === 'calendar' ? (
           <>
             <div className="grid grid-cols-7 gap-1 sm:gap-1.5 mb-1 sm:mb-1.5">
@@ -778,9 +689,6 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
                           {period.ret >= 0 ? '+' : ''}{period.ret.toFixed(2)}%
                         </td>
                         <td className="px-3 py-2.5 text-right font-mono text-xs text-white tabular-nums">{fmt(last.close)}</td>
-                        <td className="px-3 py-2.5 text-right font-mono text-xs text-slate-500">
-                          {activeDays.reduce((s, d) => s + mergedSeries.get(d)!.tradeCount, 0)}
-                        </td>
                       </tr>
                     </tfoot>
                   );
@@ -791,190 +699,63 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
         )}
       </div>
 
-      {/* ===== Day Trade Inspector ===== */}
-      <Modal isOpen={!!inspectorDate} onClose={() => { setInspectorDate(null); setShowAddTrade(false); }} title={`Day Inspector — ${inspectorDate ? format(parseISO(inspectorDate), 'EEEE, dd MMM yyyy') : ''}`} wide>
-        {inspectorDate && (
+      {/* ===== Day Journal ===== */}
+      <Modal isOpen={!!inspectorDate} onClose={() => setInspectorDate(null)} title={`Day Journal — ${inspectorDate ? format(parseISO(inspectorDate), 'EEEE, dd MMM yyyy') : ''}`} wide>
+        {inspectorDate && inspectorCell && (
           <div className="space-y-4">
             {/* Day summary */}
-            {inspectorCell && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-xs">
-                {[
-                  { label: 'Start balance', value: fmt(inspectorCell.start), cls: 'text-slate-300' },
-                  { label: 'Day P&L', value: (inspectorCell.pnl > 0 ? '+' : '') + fmt(inspectorCell.pnl), cls: pnlCls(inspectorCell.pnl) },
-                  { label: 'Day ROI', value: (roiOf(inspectorCell.pnl, inspectorCell.start) >= 0 ? '+' : '') + roiOf(inspectorCell.pnl, inspectorCell.start).toFixed(2) + '%', cls: pnlCls(inspectorCell.pnl) },
-                  { label: 'Close balance', value: fmt(inspectorCell.close), cls: 'text-slate-200' },
-                ].map(s => (
-                  <div key={s.label} className="bg-gray-900/70 border border-gray-800 rounded-lg p-2.5">
-                    <p className="text-[9px] uppercase tracking-widest text-slate-600 font-bold">{s.label}</p>
-                    <p className={`mt-0.5 font-bold ${s.cls}`}>{s.value}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Trade log */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                  Trade log {inspectorTrades.length > 0 && `(${inspectorTrades.length})`}
-                </p>
-                <button
-                  onClick={openAddTrade}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gold-500/10 border border-gold-500/30 rounded-md text-[10px] font-bold text-gold-400 hover:bg-gold-500/20 transition-colors active:scale-95"
-                >
-                  <Plus size={11} /> Add trade
-                </button>
-              </div>
-
-              {inspectorTrades.length === 0 && !showAddTrade && (
-                <div className="py-8 text-center border border-dashed border-slate-800 rounded-lg">
-                  <TrendingUp size={22} className="mx-auto text-slate-700 mb-2" />
-                  <p className="text-xs text-slate-600">No trades recorded for this day.</p>
-                  <p className="text-[10px] text-slate-700 mt-1">Log the executed trades to build the session history.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-xs">
+              {[
+                { label: 'Start balance', value: fmt(inspectorCell.start), cls: 'text-slate-300' },
+                { label: 'Deposit / WD', value: inspectorCell.flows === 0 ? '—' : (inspectorCell.flows > 0 ? '+' : '−') + fmt(Math.abs(inspectorCell.flows)), cls: inspectorCell.flows > 0 ? 'text-sky-400' : inspectorCell.flows < 0 ? 'text-amber-400' : 'text-slate-400' },
+                { label: 'Day P&L', value: (inspectorCell.pnl > 0 ? '+' : '') + fmt(inspectorCell.pnl), cls: pnlCls(inspectorCell.pnl) },
+                { label: 'Close balance', value: fmt(inspectorCell.close), cls: 'text-slate-200' },
+              ].map(s => (
+                <div key={s.label} className="bg-gray-900/70 border border-gray-800 rounded-lg p-2.5">
+                  <p className="text-[9px] uppercase tracking-widest text-slate-600 font-bold">{s.label}</p>
+                  <p className={`mt-0.5 font-bold ${s.cls}`}>{s.value}</p>
                 </div>
-              )}
-
-              <div className="space-y-2">
-                {inspectorTrades.map(t => {
-                  const acc = accounts.find(a => a.id === t.account_id);
-                  return (
-                    <div key={t.id} className="bg-gray-900/70 border border-gray-800 rounded-lg p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2 flex-wrap min-w-0">
-                          <span className="font-mono text-sm font-bold text-white">{t.symbol}</span>
-                          <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                            t.direction === 'buy' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                              : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
-                          }`}>
-                            {t.direction === 'buy' ? 'Buy / Long' : 'Sell / Short'}
-                          </span>
-                          {t.session && (
-                            <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
-                              {t.session}
-                            </span>
-                          )}
-                          {acc && scope === 'portfolio' && (
-                            <span className="text-[9px] text-slate-600">{acc.name}</span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className={`font-mono text-sm font-bold ${pnlCls(t.profit_loss)}`}>
-                            {t.profit_loss > 0 ? '+' : ''}{fmt(t.profit_loss)} {acc?.currency || baseCurrency}
-                          </span>
-                          <button
-                            onClick={() => handleDeleteTrade(t)}
-                            className="p-1 text-slate-600 hover:text-red-400 transition-colors"
-                            aria-label="Delete trade"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4 mt-1.5 font-mono text-[11px] text-slate-500 flex-wrap">
-                        {(t.entry_price !== null && t.entry_price !== undefined) && <span>Entry <span className="text-slate-300">{t.entry_price}</span></span>}
-                        {(t.exit_price !== null && t.exit_price !== undefined) && <span>Exit <span className="text-slate-300">{t.exit_price}</span></span>}
-                        {(t.rr_ratio !== null && t.rr_ratio !== undefined) && <span>R:R <span className="text-gold-400">{t.rr_ratio}</span></span>}
-                      </div>
-                      {t.notes && <p className="text-[11px] text-slate-500 mt-1">{t.notes}</p>}
-                    </div>
-                  );
-                })}
-              </div>
+              ))}
             </div>
 
-            {/* Add trade form */}
-            {showAddTrade && (
-              <div className="bg-gray-900/70 border border-gray-800 rounded-xl p-4 space-y-3 animate-fade-in">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-gold-400/80">New trade — {inspectorDate}</p>
-                  <button onClick={() => setShowAddTrade(false)} className="text-slate-500 hover:text-white"><X size={14} /></button>
+            {/* Deposits & withdrawals */}
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Deposits &amp; withdrawals</p>
+              {inspectorFlows.length === 0 ? (
+                <p className="text-xs text-slate-600 border border-dashed border-slate-800 rounded-lg py-5 text-center">
+                  No deposits or withdrawals on this day.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {inspectorFlows.map(f => {
+                    const acc = accounts.find(a => a.id === f.account_id);
+                    return (
+                      <div key={f.id} className="bg-gray-900/70 border border-gray-800 rounded-lg p-3 flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap min-w-0">
+                          <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                            f.flow_type === 'deposit' ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30'
+                              : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                          }`}>
+                            {f.flow_type}
+                          </span>
+                          {acc && scope === 'portfolio' && (
+                            <span className="text-[10px] text-slate-600">{acc.name}</span>
+                          )}
+                          {f.note && <span className="text-[11px] text-slate-500 truncate">{f.note}</span>}
+                        </div>
+                        <span className={`font-mono text-sm font-bold shrink-0 ${f.flow_type === 'deposit' ? 'text-sky-400' : 'text-amber-400'}`}>
+                          {f.flow_type === 'deposit' ? '+' : '−'}{fmt(f.amount)} {acc?.currency || baseCurrency}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
-                {scope === 'portfolio' && (
-                  <div>
-                    <label className={labelCls || 'block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1.5'}>Account *</label>
-                    <SearchableSelect options={scopeAccounts} value={tradeForm.account_id} onChange={(v) => setTradeForm(f => ({ ...f, account_id: v }))} placeholder="Select account..." />
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">Traded asset *</label>
-                    <input
-                      value={tradeForm.symbol}
-                      onChange={(e) => setTradeForm(f => ({ ...f, symbol: e.target.value }))}
-                      placeholder="e.g. XAUUSD, BTCUSD, US30"
-                      className={`${inputCls} font-mono`}
-                      autoFocus
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">Direction</label>
-                    <div className="flex gap-2">
-                      {(['buy', 'sell'] as const).map(d => (
-                        <button
-                          key={d}
-                          type="button"
-                          onClick={() => setTradeForm(f => ({ ...f, direction: d }))}
-                          className={`flex-1 py-2.5 rounded-lg text-xs font-bold border transition-colors ${
-                            tradeForm.direction === d
-                              ? d === 'buy' ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' : 'bg-rose-500/15 border-rose-500/40 text-rose-400'
-                              : 'bg-gray-900 border-gray-800 text-gray-500'
-                          }`}
-                        >
-                          {d === 'buy' ? 'Buy / Long' : 'Sell / Short'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">Entry price</label>
-                    <input value={tradeForm.entry} onChange={(e) => setTradeForm(f => ({ ...f, entry: e.target.value }))} inputMode="decimal" placeholder="0.00" className={`${inputCls} font-mono`} />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">Exit price</label>
-                    <input value={tradeForm.exit} onChange={(e) => setTradeForm(f => ({ ...f, exit: e.target.value }))} inputMode="decimal" placeholder="0.00" className={`${inputCls} font-mono`} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">Profit / Loss ({accounts.find(a => a.id === tradeForm.account_id)?.currency || baseCurrency}) *</label>
-                    <input value={tradeForm.profit} onChange={(e) => setTradeForm(f => ({ ...f, profit: e.target.value }))} inputMode="decimal" placeholder="0.00 (− for loss)" className={`${inputCls} font-mono`} />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">Risk : Reward</label>
-                    <input value={tradeForm.rr} onChange={(e) => setTradeForm(f => ({ ...f, rr: e.target.value }))} inputMode="decimal" placeholder="e.g. 2.5" className={`${inputCls} font-mono`} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">Session</label>
-                    <select
-                      value={tradeForm.session}
-                      onChange={(e) => setTradeForm(f => ({ ...f, session: e.target.value }))}
-                      className={inputCls}
-                    >
-                      {SESSIONS.map(s => <option key={s} value={s}>{s} session</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">Execution notes</label>
-                    <input value={tradeForm.notes} onChange={(e) => setTradeForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional" className={inputCls} />
-                  </div>
-                </div>
-                {tradeError && (
-                  <div className="p-2.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-xs">{tradeError}</div>
-                )}
-                <button
-                  onClick={handleSaveTrade}
-                  disabled={savingTrade}
-                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-gold-500 to-amber-400 text-black font-bold py-3 rounded-xl active:scale-95 transition-transform disabled:opacity-40"
-                >
-                  {savingTrade && <Loader2 size={15} className="animate-spin" />}
-                  Save trade
-                </button>
-              </div>
-            )}
+              )}
+            </div>
+
+            <p className="text-[10px] text-slate-600">
+              Day P&amp;L is computed from balance changes excluding deposits/withdrawals — deposits never inflate profit.
+            </p>
           </div>
         )}
       </Modal>

@@ -1,6 +1,6 @@
 
 import { supabase } from './supabase';
-import { TradingAccount, TradingCashflow, TradingSnapshot, TradingFxRate, TradingSettings, TradingCategory, TradingTrade, CurrencyCode } from '../types';
+import { TradingAccount, TradingCashflow, TradingSnapshot, TradingFxRate, TradingSettings, TradingCategory, CurrencyCode } from '../types';
 
 // Sensible seed rates vs QAR (1 unit of currency = N QAR). User-editable in the UI.
 const DEFAULT_FX_RATES: Partial<Record<CurrencyCode, number>> = {
@@ -194,36 +194,6 @@ export const tradingService = {
         rates.map((r) => ({ ...r, user_id: userId, updated_at: new Date().toISOString() })),
         { onConflict: 'user_id,currency' }
       );
-    if (error) throw error;
-  },
-
-  // --- Trade journal ---
-  async getTrades(userId: string): Promise<TradingTrade[]> {
-    const { data, error } = await supabase
-      .from('trading_trades')
-      .select('*')
-      .eq('user_id', userId)
-      .order('trade_date', { ascending: true });
-    if (error) throw error;
-    return data ?? [];
-  },
-
-  async createTrade(userId: string, trade: Omit<TradingTrade, 'id' | 'user_id' | 'created_at'>): Promise<TradingTrade> {
-    const { data, error } = await supabase
-      .from('trading_trades')
-      .insert({ ...trade, user_id: userId })
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
-  },
-
-  async deleteTrade(userId: string, id: string): Promise<void> {
-    const { error } = await supabase
-      .from('trading_trades')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', userId);
     if (error) throw error;
   },
 

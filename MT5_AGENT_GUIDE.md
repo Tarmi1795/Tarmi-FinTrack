@@ -53,16 +53,6 @@ POST {SUPABASE_URL}/rest/v1/rpc/mt5_upsert_balance
 ```
 Upserts the daily closing balance (one per account per day — safe to re-run).
 
-### `mt5_post_trade`
-```
-POST {SUPABASE_URL}/rest/v1/rpc/mt5_post_trade
-{ "p_user_id": "...", "p_account_id": "...", "p_trade_date": "2026-11-12",
-  "p_symbol": "XAUUSD", "p_direction": "buy", "p_profit": 45.20,
-  "p_entry": 2330.10, "p_exit": 2338.60, "p_rr": 2.4,
-  "p_session": "London", "p_notes": "Breakout retest" }
-```
-Returns the new trade uuid. Appears in the Day Trade Inspector instantly.
-
 ### `mt5_push_cashflow`
 ```
 POST {SUPABASE_URL}/rest/v1/rpc/mt5_push_cashflow

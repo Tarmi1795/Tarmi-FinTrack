@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { tradingService } from '../services/trading';
-import { TradingAccount, TradingCashflow, TradingSnapshot, TradingFxRate, TradingSettings, TradingCategory, TradingTrade, Account } from '../types';
+import { TradingAccount, TradingCashflow, TradingSnapshot, TradingFxRate, TradingSettings, TradingCategory, Account } from '../types';
 import { TradingTerminal } from '../components/TradingTerminal';
 import { CURRENCIES } from '../constants';
 import { Modal } from '../components/ui/Modal';
@@ -79,7 +79,6 @@ export const Trading: React.FC = () => {
   const [tfDate, setTfDate] = useState(todayStr());
   const [tfNote, setTfNote] = useState('');
   const [categories, setCategories] = useState<TradingCategory[]>([]);
-  const [trades, setTrades] = useState<TradingTrade[] | null>(null);
   const [terminalSettings, setTerminalSettings] = useState<TradingSettings | null>(null);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
@@ -114,20 +113,6 @@ export const Trading: React.FC = () => {
     }
   };
 
-  const handleAddTrade = useCallback(async (trade: Omit<TradingTrade, 'id' | 'user_id' | 'created_at'>) => {
-    if (!user) return;
-    await tradingService.createTrade(user.id, trade);
-    const trs = await tradingService.getTrades(user.id).catch(() => null);
-    setTrades(trs);
-  }, [user]);
-
-  const handleDeleteTrade = useCallback(async (id: string) => {
-    if (!user) return;
-    await tradingService.deleteTrade(user.id, id);
-    const trs = await tradingService.getTrades(user.id).catch(() => null);
-    setTrades(trs);
-  }, [user]);
-
   const handleUpdateTarget = useCallback(async (target: number) => {
     if (!user) return;
     await tradingService.saveSettings(user.id, { monthly_profit_target: target });
@@ -142,22 +127,19 @@ export const Trading: React.FC = () => {
     setNeedsMigration(false);
     setLoadError(null);
     try {
-      const [accs, flows, snaps, rates, settings, cats, trs] = await Promise.all([
+      const [accs, flows, snaps, rates, settings, cats] = await Promise.all([
         tradingService.getAccounts(user.id),
         tradingService.getCashflows(user.id),
         tradingService.getSnapshots(user.id),
         tradingService.getFxRates(user.id, baseCurrency),
         tradingService.getSettings(user.id),
         tradingService.getCategories(user.id),
-        // Trade journal is terminal-only — tolerate a pending migration
-        tradingService.getTrades(user.id).catch(() => null),
       ]);
       setAccounts(accs);
       setCashflows(flows);
       setSnapshots(snaps);
       setFxRates(rates);
       setCategories(cats);
-      setTrades(trs); // null = trading_trades migration pending
       setTerminalSettings(settings);
       setLinkedGlAccountId(settings?.linked_gl_account_id ?? null);
       const draft: Record<string, string> = {};
@@ -910,14 +892,10 @@ export const Trading: React.FC = () => {
         accounts={accounts}
         snapshots={snapshots}
         cashflows={cashflows}
-        trades={trades}
         settings={terminalSettings}
         fxRates={fxRates}
         baseCurrency={baseCurrency}
-        onAddTrade={handleAddTrade}
-        onDeleteTrade={handleDeleteTrade}
         onUpdateTarget={handleUpdateTarget}
-        onChanged={loadAll}
       />
 
       {/* Chart of Accounts connection */}
