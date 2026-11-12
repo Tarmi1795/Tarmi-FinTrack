@@ -7,6 +7,7 @@ import {
   isSameDay, isAfter, isValid,
 } from 'date-fns';
 import { ChevronLeft, ChevronRight, CalendarDays, Table2, X, Loader2 } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useFinance } from '../context/FinanceContext';
 import { AnimatedNumber } from './ui/AnimatedNumber';
 import { Modal } from './ui/Modal';
@@ -290,6 +291,13 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
     }
     return format(anchor, 'yyyy');
   }, [timeframe, anchor]);
+
+  // --- Balance curve data (full history, all recorded days) ---
+  const curveData = useMemo(() => (
+    Array.from(mergedSeries.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, c]) => ({ date, balance: c.close }))
+  ), [mergedSeries]);
 
   // --- Inspector ---
   const inspectorCell = inspectorDate ? mergedSeries.get(inspectorDate) : null;
@@ -665,13 +673,12 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
                     <th className="px-3 py-2.5 text-right">Day P&amp;L</th>
                     <th className="px-3 py-2.5 text-right">Day ROI</th>
                     <th className="px-3 py-2.5 text-right">Closing balance</th>
-                    <th className="px-3 py-2.5 text-right">Trades</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rangeDays.filter(d => mergedSeries.has(d)).map(dk => tableRow(dk))}
                   {rangeDays.filter(d => mergedSeries.has(d)).length === 0 && (
-                    <tr><td colSpan={6} className="px-3 py-8 text-center text-xs text-slate-600">No recorded activity in this range.</td></tr>
+                    <tr><td colSpan={5} className="px-3 py-8 text-center text-xs text-slate-600">No recorded activity in this range.</td></tr>
                   )}
                 </tbody>
                 {activeDays.length > 0 && (() => {
@@ -697,6 +704,59 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
             </div>
           </div>
         )}
+      </div>
+
+      {/* ===== Balance curve — full history ===== */}
+      <div className="rounded-xl border border-slate-800/80 bg-slate-950/60 p-3 md:p-4">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Balance curve</p>
+          <span className="text-[10px] font-mono text-slate-600">{scopeCurrency} · full history</span>
+        </div>
+        <ResponsiveContainer width="100%" height={220}>
+          <AreaChart data={curveData} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
+            <defs>
+              <linearGradient id="balFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#D4AF37" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="#D4AF37" stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+            <XAxis
+              dataKey="date"
+              tickFormatter={(d: string) => format(parseISO(d), 'dd MMM yy')}
+              tick={{ fill: '#71717a', fontSize: 10, fontFamily: 'monospace' }}
+              minTickGap={28}
+              axisLine={{ stroke: '#27272a' }}
+              tickLine={false}
+            />
+            <YAxis
+              tickFormatter={(v: number) => fmtC(v)}
+              tick={{ fill: '#71717a', fontSize: 10, fontFamily: 'monospace' }}
+              width={56}
+              axisLine={false}
+              tickLine={false}
+              domain={['auto', 'auto']}
+            />
+            <Tooltip
+              contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: 8, fontSize: 12, fontFamily: 'monospace' }}
+              labelStyle={{ color: '#D4AF37' }}
+              formatter={(v: number) => [`${scopeCurrency} ${fmt(v)}`, 'Balance']}
+            />
+            <Area
+              type="monotone"
+              dataKey="balance"
+              stroke="#D4AF37"
+              strokeWidth={2}
+              fill="url(#balFill)"
+              dot={false}
+              activeDot={{ r: 4, fill: '#D4AF37', stroke: '#12100d' }}
+              isAnimationActive={false}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+        <p className="text-[10px] text-slate-600 mt-1">
+          Daily closing balance from the first recorded day — your MT5 agent keeps extending it into the future.
+        </p>
       </div>
 
       {/* ===== Day Journal ===== */}
