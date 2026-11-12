@@ -173,6 +173,20 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
     return merged;
   }, [accounts, scope, seriesByAccount, rateFor]);
 
+  // --- Scope capital: net deposits (Σ deposits − withdrawals, base currency) —
+  // the same definition as the Total Capital summary card. Anchors all-time P&L.
+  const scopeCapital = useMemo(() => {
+    let cap = 0;
+    for (const acc of accounts) {
+      if (scope !== 'portfolio' && scope !== acc.id) continue;
+      const net = cashflows
+        .filter(f => f.account_id === acc.id)
+        .reduce((s, f) => s + (f.flow_type === 'deposit' ? f.amount : -f.amount), 0);
+      cap += net * rateFor(acc.currency);
+    }
+    return r2(cap);
+  }, [accounts, cashflows, scope, rateFor]);
+
   // --- Range resolution ---
   const rangeDays = useMemo((): string[] => {
     const allDates = Array.from(mergedSeries.keys()).sort();
@@ -199,19 +213,24 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
   // --- KPI values ---
   const allTime = useMemo(() => {
     const dates = Array.from(mergedSeries.keys()).sort();
-    if (dates.length === 0) return { start: 0, current: 0, roi: 0 };
-    const start = mergedSeries.get(dates[0])!.close;
-    const current = mergedSeries.get(dates[dates.length - 1])!.close;
-    return { start, current, roi: roiOf(current - start, start) };
-  }, [mergedSeries]);
+    const current = dates.length ? mergedSeries.get(dates[dates.length - 1])!.close : 0;
+    // Anchor P&L to net-deposits capital (same as the Total Capital card), not the
+    // first recorded close — capital keeps counting deposits made after that day.
+    const pnl = r2(current - scopeCapital);
+    return { start: scopeCapital, current, pnl, roi: roiOf(pnl, scopeCapital) };
+  }, [mergedSeries, scopeCapital]);
 
   const period = useMemo(() => {
+    if (timeframe === 'all') {
+      // All-time = balance today − total capital (user-confirmed definition)
+      return { pnl: allTime.pnl, ret: allTime.roi, start: allTime.start };
+    }
     if (activeDays.length === 0) return { pnl: 0, ret: 0, start: 0 };
     const first = mergedSeries.get(activeDays[0])!;
     const pnl = r2(activeDays.reduce((s, d) => s + mergedSeries.get(d)!.pnl, 0));
     const base = first.start || first.close;
     return { pnl, ret: roiOf(pnl, base), start: base };
-  }, [activeDays, mergedSeries]);
+  }, [activeDays, mergedSeries, timeframe, allTime]);
 
   const monthStats = useMemo(() => {
     const monthPrefix = format(anchor, 'yyyy-MM');
@@ -474,7 +493,13 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
               {allTime.roi >= 0 ? '+' : ''}{allTime.roi.toFixed(2)}% Net ROI
             </span>
           </div>
-          <p className="text-[10px] text-slate-600 mt-1.5">All-time · since first recorded balance</p>
+          <div className="mt-1 flex items-center justify-between gap-2 text-xs">
+            <span className="text-slate-500 font-mono">All-time P&amp;L</span>
+            <span className={`font-mono font-bold ${pnlCls(allTime.pnl)}`}>
+              {allTime.pnl > 0 ? '+' : ''}{fmt(allTime.pnl)}
+            </span>
+          </div>
+          <p className="text-[10px] text-slate-600 mt-1.5">All-time · capital = net deposits</p>
         </div>
 
         {/* Period P&L */}
