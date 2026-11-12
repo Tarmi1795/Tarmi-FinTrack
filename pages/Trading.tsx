@@ -1000,6 +1000,32 @@ export const Trading: React.FC = () => {
         )}
       </div>
 
+      {/* Summary cards (restored pre-terminal view: Capital, Balance, P/L, ROI) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+        <div className="glass-card p-3.5">
+          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><Landmark size={12} /> Total Capital</div>
+          <p className="font-mono text-base md:text-xl font-bold text-white mt-2 truncate"><AnimatedNumber value={totals.capitalBase} /></p>
+          <p className="text-[10px] text-gray-600 mt-0.5">{baseCurrency} • net deposits{archivedAccounts.length > 0 ? ` • incl. ${archivedAccounts.length} archived` : ''}</p>
+        </div>
+        <div className="glass-card p-3.5">
+          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><Wallet size={12} /> Balance Today</div>
+          <p className="font-mono text-base md:text-xl font-bold text-gold-400 mt-2 truncate"><AnimatedNumber value={totals.balanceBase} /></p>
+          <p className="text-[10px] text-gray-600 mt-0.5">{baseCurrency} • latest snapshots{archivedAccounts.length > 0 ? ' • incl. archived' : ''}</p>
+        </div>
+        <div className="glass-card p-3.5">
+          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">
+            {totals.pnlBase >= 0 ? <TrendingUp size={12} className="text-emerald-400" /> : <TrendingDown size={12} className="text-red-400" />} Net P/L
+          </div>
+          <div className="mt-2"><PnlCell value={totals.pnlBase} /></div>
+          <p className="text-[10px] text-gray-600 mt-0.5">{baseCurrency} • balance − capital</p>
+        </div>
+        <div className="glass-card p-3.5">
+          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500"><CandlestickChart size={12} /> ROI</div>
+          <p className={`font-mono text-base md:text-xl font-bold mt-2 ${totals.roi >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtPct(totals.roi)}</p>
+          <p className="text-[10px] text-gray-600 mt-0.5">portfolio return on capital</p>
+        </div>
+      </div>
+
       {/* FX rates (collapsed by default) */}
       <div className="glass-card p-4 md:p-5">
         <button
