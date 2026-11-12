@@ -436,15 +436,27 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
         </div>
         {hasData && (
           <div className="mt-1.5 font-mono">
-            {displayMode !== 'roi' && (
-              <div className={`text-xs font-bold ${pnlCls(cell.pnl)}`}>
-                {cell.pnl > 0 ? '+' : ''}{fmt(cell.pnl)}
-              </div>
-            )}
-            {displayMode !== 'pnl' && (
-              <div className={`text-[10px] ${pnlCls(cell.pnl)} ${displayMode === 'both' ? 'opacity-80' : 'text-sm font-bold'}`}>
-                {roiOf(cell.pnl, cell.start) >= 0 ? '+' : ''}{roiOf(cell.pnl, cell.start).toFixed(2)}%
-              </div>
+            {displayMode === 'roi' ? (
+              // ROI-emphasized: big %, but the P&L amount is always shown too
+              <>
+                <div className={`text-sm font-bold ${pnlCls(cell.pnl)}`}>
+                  {roiOf(cell.pnl, cell.start) >= 0 ? '+' : ''}{roiOf(cell.pnl, cell.start).toFixed(2)}%
+                </div>
+                <div className={`text-[10px] ${pnlCls(cell.pnl)} opacity-80`}>
+                  {cell.pnl > 0 ? '+' : ''}{fmt(cell.pnl)}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className={`text-xs font-bold ${pnlCls(cell.pnl)}`}>
+                  {cell.pnl > 0 ? '+' : ''}{fmt(cell.pnl)}
+                </div>
+                {displayMode !== 'pnl' && (
+                  <div className={`text-[10px] ${pnlCls(cell.pnl)} ${displayMode === 'both' ? 'opacity-80' : 'text-sm font-bold'}`}>
+                    {roiOf(cell.pnl, cell.start) >= 0 ? '+' : ''}{roiOf(cell.pnl, cell.start).toFixed(2)}%
+                  </div>
+                )}
+              </>
             )}
             <div className="text-[9px] text-slate-500 mt-1">{cell.tradeCount} trade{cell.tradeCount === 1 ? '' : 's'}</div>
           </div>
