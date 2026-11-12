@@ -31,20 +31,33 @@ async function sql(q) {
 }
 
 (async () => {
-  const uid = crypto.randomUUID();
-  await sql(`
-    INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password,
-      email_confirmed_at, created_at, updated_at,
-      raw_app_meta_data, raw_user_meta_data)
-    VALUES ('00000000-0000-0000-0000-000000000000', '${uid}', 'authenticated', 'authenticated',
-      '${EMAIL}', crypt('${PASSWORD}', gen_salt('bf')), now(), now(), now(),
-      '{"provider":"email","providers":["email"]}', '{}')
-    ON CONFLICT (id) DO NOTHING`);
-  await sql(`
-    INSERT INTO auth.identities (id, user_id, provider_id, identity_data, last_sign_in_at, created_at, updated_at)
-    VALUES ('${uid}', '${uid}', 'email',
-      jsonb_build_object('sub', '${uid}', 'email', '${EMAIL}'), now(), now(), now())
-    ON CONFLICT (id, provider_id) DO NOTHING`);
+  // Idempotent: reuse the existing agent account when present, else create it
+  const existing = await sql(`SELECT id FROM auth.users WHERE lower(email) = '${EMAIL}'`);
+  let uid;
+  if (existing.length > 0) {
+    uid = existing[0].id;
+    console.log(`auth user exists: ${uid}`);
+    await sql(`UPDATE auth.users SET encrypted_password = crypt('${PASSWORD}', gen_salt('bf')),
+      email_confirmed_at = COALESCE(email_confirmed_at, now()), updated_at = now()
+      WHERE id = '${uid}'`);
+  } else {
+    uid = crypto.randomUUID();
+    await sql(`
+      INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password,
+        email_confirmed_at, created_at, updated_at,
+        raw_app_meta_data, raw_user_meta_data)
+      VALUES ('00000000-0000-0000-0000-000000000000', '${uid}', 'authenticated', 'authenticated',
+        '${EMAIL}', crypt('${PASSWORD}', gen_salt('bf')), now(), now(), now(),
+        '{"provider":"email","providers":["email"]}', '{}')`);
+    console.log(`auth user created: ${uid}`);
+  }
+  const ident = await sql(`SELECT 1 FROM auth.identities WHERE user_id = '${uid}' AND provider_id = 'email'`);
+  if (ident.length === 0) {
+    await sql(`
+      INSERT INTO auth.identities (id, user_id, provider_id, provider, identity_data, last_sign_in_at, created_at, updated_at)
+      VALUES ('${uid}', '${uid}', 'email', 'email',
+        jsonb_build_object('sub', '${uid}', 'email', '${EMAIL}'), now(), now(), now())`);
+  }
   await sql(`
     INSERT INTO public.fintrack_profiles (id, name, email, role)
     VALUES ('${uid}', 'MT5 Agent', '${EMAIL}', 'agent')
