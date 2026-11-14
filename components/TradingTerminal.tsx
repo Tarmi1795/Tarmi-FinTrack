@@ -22,7 +22,8 @@ interface DayCell {
   pnl: number;
   close: number;
   flows: number;
-  isInit: boolean;
+  isInit: boolean;   // first recorded day of the scope
+  hasEvents: boolean; // a snapshot or money movement happened this day
 }
 
 type Scope = 'portfolio' | string;
@@ -82,85 +83,100 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
   }, [fxRates, baseCurrency]);
   const rateFor = useCallback((currency: string) => (currency === baseCurrency ? 1 : rateMap[currency] ?? 1), [rateMap, baseCurrency]);
 
-  // --- Per-account daily series ---
+  // --- Per-account series: event-day cells + carried balance lookup ---
+  // Event days = days with a snapshot or a money movement. The balance carries
+  // forward across gap days, so "as of any date" lookups stay correct even when
+  // an account stops pushing snapshots.
   const seriesByAccount = useMemo(() => {
-    const out: Record<string, Map<string, DayCell>> = {};
+    const out: Record<string, {
+      events: Map<string, { pnl: number; flows: number; hasSnapshot: boolean; isInit: boolean }>;
+      balances: Array<{ date: string; close: number }>;
+      flowsByDate: Map<string, number>;
+      firstDate: string | null;
+    }> = {};
     for (const acc of accounts) {
-      const rate = rateFor(acc.currency);
       const snaps = snapshots.filter(s => s.account_id === acc.id)
         .sort((a, b) => a.snap_date.localeCompare(b.snap_date));
       const snapMap = new Map(snaps.map(s => [s.snap_date, s]));
       const flowsByDate = new Map<string, number>();
       cashflows.filter(f => f.account_id === acc.id).forEach(f => {
-        flowsByDate.set(f.flow_date, (flowsByDate.get(f.flow_date) || 0) + (f.flow_type === 'deposit' ? f.amount : -f.amount));
+        flowsByDate.set(f.flow_date, (flowsByDate.get(f.flow_date) || 0) + (f.flow_type === 'deposit' ? Number(f.amount) : -Number(f.amount)));
       });
       const dates = Array.from(new Set([
         ...snaps.map(s => s.snap_date),
         ...flowsByDate.keys(),
       ])).sort();
 
-      const series = new Map<string, DayCell>();
+      const events = new Map<string, { pnl: number; flows: number; hasSnapshot: boolean; isInit: boolean }>();
+      const balances: Array<{ date: string; close: number }> = [];
       let prevClose: number | null = null;
       for (const d of dates) {
         const flowsD = r2(flowsByDate.get(d) || 0);
         const snap = snapMap.get(d);
         const isInit = prevClose === null;
         let close: number;
-        let pnl: number;
+        let pnl = 0;
         if (snap) {
           close = Number(snap.balance);
-          if (isInit) {
-            // Opening day: the gap between the first recorded balance and the
-            // deposits made up to that day is real trading history — count it,
-            // so the day-sum telescopes to (balance − capital) over any range
-            // that covers the account's full history.
-            pnl = r2(close - flowsD);
-          } else {
-            pnl = r2(close - prevClose - flowsD);
-          }
+          pnl = isInit ? r2(close - flowsD) : r2(close - prevClose - flowsD);
         } else {
           close = r2((prevClose ?? 0) + flowsD);
         }
-        const start = isInit ? close : prevClose;
-        series.set(d, {
-          date: d,
-          start: r2(start ?? 0),
-          pnl: r2(pnl),
-          close: r2(close),
-          flows: flowsD,
-          isInit,
-        });
+        events.set(d, { pnl, flows: flowsD, hasSnapshot: !!snap, isInit });
+        balances.push({ date: d, close });
         prevClose = close;
       }
-      out[acc.id] = series;
+      out[acc.id] = { events, balances, flowsByDate, firstDate: dates[0] || null };
     }
     return out;
-  }, [accounts, snapshots, cashflows, rateFor]);
+  }, [accounts, snapshots, cashflows]);
 
-  // --- Merged scope series (converted to base currency) ---
+  // --- Merged scope series (carry-forward: continuous from first to last event;
+  // every account's balance is carried across gap days so the total value and
+  // the curve stay correct even when a broker stops pushing snapshots) ---
   const mergedSeries = useMemo(() => {
+    const inScope = accounts.filter(a => scope === 'portfolio' || a.id === scope);
+    const dateSet = new Set<string>();
+    inScope.forEach(acc => {
+      seriesByAccount[acc.id]?.balances.forEach(b => dateSet.add(b.date));
+    });
+    const allDates = Array.from(dateSet).sort();
     const merged = new Map<string, DayCell>();
-    for (const acc of accounts) {
-      if (scope !== 'portfolio' && scope !== acc.id) continue;
-      const rate = rateFor(acc.currency);
-      seriesByAccount[acc.id]?.forEach((cell, d) => {
-        const cur = merged.get(d);
-        if (cur) {
-          cur.start = r2(cur.start + cell.start * rate);
-          cur.pnl = r2(cur.pnl + cell.pnl * rate);
-          cur.close = r2(cur.close + cell.close * rate);
-          cur.flows = r2(cur.flows + cell.flows * rate);
-        } else {
-          merged.set(d, {
-            date: d,
-            start: r2(cell.start * rate),
-            pnl: r2(cell.pnl * rate),
-            close: r2(cell.close * rate),
-            flows: r2(cell.flows * rate),
-            isInit: cell.isInit,
-          });
-        }
+    if (allDates.length === 0) return merged;
+
+    const idxs = new Map<string, number>(); // pointer into each account's balances
+    inScope.forEach(acc => idxs.set(acc.id, -1));
+
+    let prevTotal: number | null = null;
+    for (const d of allDates) {
+      let closeSum = 0, flowsSum = 0, pnlSum = 0, hasEvents = false;
+      for (const acc of inScope) {
+        const s = seriesByAccount[acc.id];
+        if (!s) continue;
+        let idx = idxs.get(acc.id)!;
+        while (idx + 1 < s.balances.length && s.balances[idx + 1].date <= d) idx++;
+        idxs.set(acc.id, idx);
+        if (idx < 0) continue; // account not open yet
+        const rate = rateFor(acc.currency);
+        const asOfCur = s.balances[idx].close;
+        const flowsAcc = r2(s.flowsByDate.get(d) || 0);
+        const pnlAcc = idx === 0 ? r2(asOfCur - flowsAcc) : r2(asOfCur - s.balances[idx - 1].close - flowsAcc);
+        closeSum += asOfCur * rate;
+        flowsSum += flowsAcc * rate;
+        pnlSum += pnlAcc * rate;
+        if (s.events.get(d)?.hasSnapshot || flowsAcc !== 0) hasEvents = true;
+      }
+      const start = prevTotal === null ? r2(closeSum - pnlSum - flowsSum) : prevTotal;
+      merged.set(d, {
+        date: d,
+        start,
+        pnl: pnlSum,
+        close: closeSum,
+        flows: flowsSum,
+        isInit: prevTotal === null,
+        hasEvents,
       });
+      prevTotal = closeSum;
     }
     return merged;
   }, [accounts, scope, seriesByAccount, rateFor]);
@@ -199,7 +215,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
   }, [mergedSeries, timeframe, anchor]);
 
   const activeDays = useMemo(() =>
-    rangeDays.filter(d => mergedSeries.has(d) && mergedSeries.get(d)!)
+    rangeDays.filter(d => mergedSeries.get(d)?.hasEvents)
   , [rangeDays, mergedSeries]);
 
   // --- KPI values ---
@@ -339,6 +355,52 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
       f.flow_date === inspectorDate && scopeAccountIds.includes(f.account_id));
   }, [cashflows, inspectorDate, scopeAccountIds]);
 
+  // --- Per-broker P&L breakdown for the Day Journal ---
+  // Day Δ = snapshot(day) − snapshot(previous existing snapshot), in the
+  // account's native currency and converted to base. Deposits/withdrawals are
+  // never part of these deltas — they are listed separately as money movements.
+  interface BreakdownRow {
+    id: string; name: string; currency: string;
+    eod: number | null; prev: number | null;
+    deltaNative: number | null; deltaBase: number | null;
+    share: number | null; isNew: boolean;
+  }
+  const dayBreakdown = useMemo(() => {
+    if (!inspectorDate) return null;
+    const inScope = accounts.filter(a =>
+      a.is_active !== false && (scope === 'portfolio' || a.id === scope));
+    const rows: BreakdownRow[] = [];
+    for (const acc of inScope) {
+      const snaps = snapshots.filter(s => s.account_id === acc.id)
+        .sort((x, y) => x.snap_date.localeCompare(y.snap_date));
+      if (snaps.length === 0) continue;
+      const eodSnap = snaps.find(s => s.snap_date === inspectorDate) || null;
+      const prevSnap = snaps.filter(s => s.snap_date < inspectorDate).pop() || null;
+      const rate = rateFor(acc.currency);
+      if (!eodSnap) {
+        rows.push({ id: acc.id, name: acc.name, currency: acc.currency, eod: null, prev: prevSnap ? Number(prevSnap.balance) : null, deltaNative: null, deltaBase: null, share: null, isNew: false });
+        continue;
+      }
+      const eod = Number(eodSnap.balance);
+      if (!prevSnap) {
+        // first snapshot ever — no baseline to measure against
+        rows.push({ id: acc.id, name: acc.name, currency: acc.currency, eod, prev: null, deltaNative: null, deltaBase: null, share: null, isNew: true });
+        continue;
+      }
+      const deltaNative = r2(eod - Number(prevSnap.balance));
+      const deltaBase = r2(deltaNative * rate);
+      rows.push({ id: acc.id, name: acc.name, currency: acc.currency, eod, prev: Number(prevSnap.balance), deltaNative, deltaBase, share: null, isNew: false });
+    }
+    const totalDelta = r2(rows.reduce((s, r) => s + (r.deltaBase ?? 0), 0));
+    rows.forEach(r => {
+      r.share = r.deltaBase !== null && Math.abs(totalDelta) > 0
+        ? r2((r.deltaBase / Math.abs(totalDelta)) * 100)
+        : null;
+    });
+    rows.sort((a, b) => Math.abs(b.deltaBase ?? 0) - Math.abs(a.deltaBase ?? 0));
+    return { rows, totalDelta };
+  }, [inspectorDate, accounts, snapshots, scope, rateFor]);
+
   // --- Render helpers ---
   const scopeCurrency = scope === 'portfolio' ? baseCurrency : accounts.find(a => a.id === scope)?.currency || baseCurrency;
   const scopeLabel = scope === 'portfolio' ? 'Portfolio' : accounts.find(a => a.id === scope)?.name || '';
@@ -368,13 +430,13 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
     const cell = mergedSeries.get(dk);
     const isToday = isSameDay(date, new Date());
     const isInit = cell?.isInit;
-    const hasData = !!cell;
+    const hasData = !!cell && cell.hasEvents;
     const pos = (cell?.pnl || 0) > 0;
     const neg = (cell?.pnl || 0) < 0;
     return (
       <button
         key={key}
-        onClick={() => cell && setInspectorDate(dk)}
+        onClick={() => hasData && setInspectorDate(dk)}
         disabled={!hasData}
         className={`relative min-h-[62px] p-1.5 sm:min-h-[74px] sm:p-2 rounded-md border text-left transition-all ${
           hasData
@@ -699,8 +761,8 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {rangeDays.filter(d => mergedSeries.has(d)).map(dk => tableRow(dk))}
-                  {rangeDays.filter(d => mergedSeries.has(d)).length === 0 && (
+                  {rangeDays.filter(d => mergedSeries.get(d)?.hasEvents).map(dk => tableRow(dk))}
+                  {rangeDays.filter(d => mergedSeries.get(d)?.hasEvents).length === 0 && (
                     <tr><td colSpan={5} className="px-3 py-8 text-center text-xs text-slate-600">No recorded activity in this range.</td></tr>
                   )}
                 </tbody>
@@ -813,12 +875,72 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
               ))}
             </div>
 
-            {/* Deposits & withdrawals */}
+            {/* P&L breakdown by broker */}
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Deposits &amp; withdrawals</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">P&amp;L breakdown by broker</p>
+              {(!dayBreakdown || dayBreakdown.rows.every(r => r.eod === null)) ? (
+                <p className="text-xs text-slate-600 border border-dashed border-slate-800 rounded-lg py-5 text-center">
+                  No snapshot data for this day.
+                </p>
+              ) : (
+                <div className="border border-gray-800 rounded-lg overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left min-w-[640px]">
+                      <thead>
+                        <tr className="bg-gray-900/80 border-b border-gray-800 text-[9px] font-bold uppercase tracking-widest text-slate-500">
+                          <th className="px-3 py-2">Account</th>
+                          <th className="px-3 py-2">Currency</th>
+                          <th className="px-3 py-2 text-right">Snapshot (EOD)</th>
+                          <th className="px-3 py-2 text-right">Prev day snapshot</th>
+                          <th className="px-3 py-2 text-right">Day Δ (native)</th>
+                          <th className="px-3 py-2 text-right">Day Δ ({baseCurrency})</th>
+                          <th className="px-3 py-2 text-right">Share of move</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dayBreakdown.rows.map(r => (
+                          <tr key={r.id} className="border-b border-gray-800/60">
+                            <td className="px-3 py-2 text-xs text-slate-200 font-medium">{r.name}</td>
+                            <td className="px-3 py-2 text-xs font-mono text-slate-500">{r.currency}</td>
+                            <td className="px-3 py-2 text-right font-mono text-xs text-slate-200 tabular-nums">{r.eod === null ? '—' : fmt(r.eod)}</td>
+                            <td className="px-3 py-2 text-right font-mono text-xs tabular-nums">
+                              {r.isNew ? (
+                                <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-gold-500/15 text-gold-400 border border-gold-500/30">new</span>
+                              ) : r.prev === null ? '—' : <span className="text-slate-400">{fmt(r.prev)}</span>}
+                            </td>
+                            <td className={`px-3 py-2 text-right font-mono text-xs tabular-nums ${r.deltaNative === null ? 'text-slate-500' : pnlCls(r.deltaNative)}`}>
+                              {r.isNew ? 'new' : r.deltaNative === null ? '—' : (r.deltaNative > 0 ? '+' : '') + fmt(r.deltaNative)}
+                            </td>
+                            <td className={`px-3 py-2 text-right font-mono text-xs font-bold tabular-nums ${r.deltaBase === null ? 'text-slate-500' : pnlCls(r.deltaBase)}`}>
+                              {r.isNew ? 'new' : r.deltaBase === null ? '—' : (r.deltaBase > 0 ? '+' : '') + fmt(r.deltaBase)}
+                            </td>
+                            <td className={`px-3 py-2 text-right font-mono text-xs tabular-nums ${r.share === null ? 'text-slate-500' : pnlCls(r.share)}`}>
+                              {r.share === null ? '—' : (r.share > 0 ? '+' : '') + r.share.toFixed(1) + '%'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-gray-900/90 border-t border-gray-700 font-bold">
+                          <td className="px-3 py-2 text-[10px] uppercase tracking-widest text-slate-400" colSpan={5}>Total day move</td>
+                          <td className={`px-3 py-2 text-right font-mono text-xs tabular-nums ${pnlCls(dayBreakdown.totalDelta)}`}>
+                            {dayBreakdown.totalDelta > 0 ? '+' : ''}{fmt(dayBreakdown.totalDelta)}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-xs text-slate-600">—</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Money movements — never mixed into the P&L deltas above */}
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Money movements</p>
               {inspectorFlows.length === 0 ? (
                 <p className="text-xs text-slate-600 border border-dashed border-slate-800 rounded-lg py-5 text-center">
-                  No deposits or withdrawals on this day.
+                  No money movements on this day.
                 </p>
               ) : (
                 <div className="space-y-2">
