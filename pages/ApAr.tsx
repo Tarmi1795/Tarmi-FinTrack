@@ -119,6 +119,18 @@ export const ApAr: React.FC = () => {
 
   // --- ACTIONS ---
 
+  // Resolve the party's ledger account. Parties can be deleted while their
+  // invoices/bills still reference them, so fall back to matching the party
+  // sub-ledger account by name — otherwise accruals/settlements silently
+  // post nothing and the ledger never updates.
+  const resolvePartyLinkedAccount = (item: { partyId?: string; partyName?: string }): string | undefined => {
+      const party = state.parties.find(p => p.id === item.partyId);
+      if (party?.linkedAccountId) return party.linkedAccountId;
+      const name = (item.partyName || '').trim().toLowerCase();
+      if (!name) return undefined;
+      return state.accounts.find(a => a.isPosting && a.name.trim().toLowerCase() === name)?.id;
+  };
+
   const goToPartySOA = (partyId: string) => {
       const party = state.parties.find(p => p.id === partyId);
       if (party?.linkedAccountId) {
@@ -298,14 +310,13 @@ export const ApAr: React.FC = () => {
       setIsFormOpen(false);
   };
 
-  const createAccrualTransaction = (item: Receivable, id: string) => {
+  const createAccrualTransaction = (item: Receivable, id: string): boolean => {
       // Logic to create the underlying GL transaction
-      const party = state.parties.find(p => p.id === item.partyId);
-      const partyLinkedAccount = party?.linkedAccountId;
+      const partyLinkedAccount = resolvePartyLinkedAccount(item);
 
       if (!partyLinkedAccount) {
-          console.warn("Party has no linked account for accrual posting.");
-          return;
+          console.warn(`Party "${item.partyName}" has no linked account for accrual posting.`);
+          return false;
       }
 
       // Identify if this is a Loan (Cash Movement) or Accrual (Invoice/Bill)
@@ -334,8 +345,9 @@ export const ApAr: React.FC = () => {
           
           receivableId: id
       };
-      
+
       dispatch({ type: 'ADD_TRANSACTION', payload: tx });
+      return true;
   };
 
   const handleSync = async () => {
@@ -346,15 +358,20 @@ export const ApAr: React.FC = () => {
       if (!confirmed) return;
 
       let createdCount = 0;
+      const skipped: string[] = [];
       state.receivables.forEach(r => {
           const exists = state.transactions.some(t => t.note?.includes(`Ref:${r.id}`));
           if (!exists) {
-              createAccrualTransaction(r, r.id);
-              createdCount++;
+              if (createAccrualTransaction(r, r.id)) createdCount++;
+              else skipped.push(r.partyName || 'Unknown party');
           }
       });
 
-      alert(createdCount > 0 ? `Synced! Created ${createdCount} missing transactions.` : "All records are in sync.");
+      if (skipped.length > 0) {
+          alert(`Synced! Created ${createdCount} missing transactions.\n\nSkipped ${skipped.length} item(s) with no ledger account: ${[...new Set(skipped)].join(', ')}. Open Parties in Settings and link them to an account.`);
+      } else {
+          alert(createdCount > 0 ? `Synced! Created ${createdCount} missing transactions.` : "All records are in sync.");
+      }
   };
 
   const handleDelete = async (id: string) => {
@@ -408,11 +425,19 @@ export const ApAr: React.FC = () => {
           status: isFullyPaid ? 'paid' : 'pending',
           paidDate: isFullyPaid ? new Date().toISOString() : undefined
       };
-      dispatch({ type: 'UPDATE_RECEIVABLE', payload: updatedItem });
 
       // Create Payment Transaction (Partial Amount)
-      const party = state.parties.find(p => p.id === item.partyId);
-      const partyLinkedAccount = party?.linkedAccountId;
+      const partyLinkedAccount = resolvePartyLinkedAccount(item);
+
+      if (!partyLinkedAccount) {
+          // Never mark paid without posting the settlement — that is exactly the
+          // "check button doesn't update the data" bug: the item disappears but
+          // no journal entry reaches the ledger.
+          alert(`"${item.partyName}" has no linked ledger account, so the payment can't be recorded.\n\nGo to Settings → Parties, recreate/link "${item.partyName}" to its account, then settle again.`);
+          return;
+      }
+
+      dispatch({ type: 'UPDATE_RECEIVABLE', payload: updatedItem });
 
       const isLoan = item.subType === 'loan';
       const txType = isLoan ? 'transfer' : (item.type === 'receivable' ? 'income' : 'expense');
@@ -432,9 +457,8 @@ export const ApAr: React.FC = () => {
           receivableId: item.id
       };
 
-      if (partyLinkedAccount) {
-         dispatch({ type: 'ADD_TRANSACTION', payload: tx });
-      }
+      // The party's ledger account is guaranteed here — always post the settlement.
+      dispatch({ type: 'ADD_TRANSACTION', payload: tx });
 
       // Handle Recurring - ONLY if Fully Paid (or if user wants auto-recurrence on settlement)
       // Logic: Only generate next item if we are fully setting the current one.
