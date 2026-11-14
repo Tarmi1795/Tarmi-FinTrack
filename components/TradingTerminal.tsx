@@ -566,24 +566,27 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
     <div
       className={`min-h-[62px] sm:min-h-[74px] rounded-md border p-1.5 sm:p-2 text-right ${
         wt.hasData
-          ? wt.pnl > 0 ? 'border-emerald-500/30 bg-emerald-500/[0.05]'
-            : wt.pnl < 0 ? 'border-rose-500/30 bg-rose-500/[0.05]'
-              : 'border-slate-800 bg-slate-900/60'
-          : 'border-transparent bg-slate-900/20 opacity-30'
+          ? 'border-slate-600 bg-slate-900' // solid, brighter border — clearly not a day tile
+          : 'border-dashed border-slate-800/60 bg-slate-900/20 opacity-30'
       }`}
     >
       {wt.hasData && (
-        <div className="mt-1 sm:mt-1.5 font-mono">
-          <div className={`text-[10px] sm:text-xs font-bold ${pnlCls(wt.pnl)}`}>
-            <span className="sm:hidden">{wt.pnl > 0 ? '+' : ''}{fmtC(wt.pnl)}</span>
-            <span className="hidden sm:inline">{wt.pnl > 0 ? '+' : ''}{fmt(wt.pnl)}</span>
+        <>
+          <div className="flex items-center justify-between">
+            <span className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Σ</span>
           </div>
-          {displayMode !== 'pnl' && wt.base !== null && wt.base !== 0 && (
-            <div className={`text-[9px] sm:text-[10px] ${pnlCls(wt.pnl)} opacity-80`}>
-              {roiOf(wt.pnl, wt.base) >= 0 ? '+' : ''}{roiOf(wt.pnl, wt.base).toFixed(2)}%
+          <div className="mt-0.5 sm:mt-1 font-mono">
+            <div className={`text-[10px] sm:text-xs font-bold ${pnlCls(wt.pnl)}`}>
+              <span className="sm:hidden">{wt.pnl > 0 ? '+' : ''}{fmtC(wt.pnl)}</span>
+              <span className="hidden sm:inline">{wt.pnl > 0 ? '+' : ''}{fmt(wt.pnl)}</span>
             </div>
-          )}
-        </div>
+            {displayMode !== 'pnl' && wt.base !== null && wt.base !== 0 && (
+              <div className={`text-[9px] sm:text-[10px] ${pnlCls(wt.pnl)} opacity-80`}>
+                {roiOf(wt.pnl, wt.base) >= 0 ? '+' : ''}{roiOf(wt.pnl, wt.base).toFixed(2)}%
+              </div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
