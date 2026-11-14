@@ -159,12 +159,16 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
         if (idx < 0) continue; // account not open yet
         const rate = rateFor(acc.currency);
         const asOfCur = s.balances[idx].close;
-        const flowsAcc = r2(s.flowsByDate.get(d) || 0);
-        const pnlAcc = idx === 0 ? r2(asOfCur - flowsAcc) : r2(asOfCur - s.balances[idx - 1].close - flowsAcc);
         closeSum += asOfCur * rate;
-        flowsSum += flowsAcc * rate;
-        pnlSum += pnlAcc * rate;
-        if (s.events.get(d)?.hasSnapshot || flowsAcc !== 0) hasEvents = true;
+        // Only event days carry P&L and flows — a carried balance contributes
+        // nothing, otherwise an account's final event-day move would be
+        // re-counted on every later day forever.
+        const ev = s.events.get(d);
+        if (ev) {
+          flowsSum += ev.flows * rate;
+          pnlSum += ev.pnl * rate;
+          if (ev.hasSnapshot || ev.flows !== 0) hasEvents = true;
+        }
       }
       const start = prevTotal === null ? r2(closeSum - pnlSum - flowsSum) : prevTotal;
       merged.set(d, {
