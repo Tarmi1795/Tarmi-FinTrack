@@ -673,7 +673,10 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
           </div>
           <div className="mt-2 flex items-center justify-between text-xs">
             <span className="text-slate-500 font-mono">
-              {activeDays.length} recorded days
+              <span className="text-emerald-400 font-bold">{rangeWL.wins}W</span>
+              <span className="text-slate-600"> / </span>
+              <span className="text-rose-400 font-bold">{rangeWL.losses}L</span>
+              <span className="text-slate-600"> · {activeDays.length} days</span>
             </span>
             <span className={`font-mono font-bold px-2 py-0.5 rounded-md text-[11px] border ${
               period.ret >= 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
