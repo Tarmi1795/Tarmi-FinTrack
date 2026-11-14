@@ -271,6 +271,45 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
     };
   }, [mergedSeries, anchor, settings]);
 
+  // --- Year overview: 12 month-performance cards ---
+  const yearMonths = useMemo(() => {
+    const year = anchor.getFullYear();
+    const firstEver = Array.from(mergedSeries.keys()).sort()[0] || '';
+    const out: Array<{
+      month: number; label: string;
+      pnl: number; flows: number; wins: number; losses: number;
+      tradingDays: number; roi: number | null;
+      hasData: boolean; isCurrent: boolean;
+    }> = [];
+    for (let m = 0; m < 12; m++) {
+      const prefix = `${year}-${String(m + 1).padStart(2, '0')}`;
+      const cells = Array.from(mergedSeries.entries())
+        .filter(([d]) => d.startsWith(prefix))
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([, c]) => c);
+      const eventCells = cells.filter(c => c.hasEvents);
+      const pnl = r2(cells.reduce((s, c) => s + c.pnl, 0));
+      const flows = r2(cells.reduce((s, c) => s + c.flows, 0));
+      const wins = eventCells.filter(c => c.pnl > 0).length;
+      const losses = eventCells.filter(c => c.pnl < 0).length;
+      const hasData = eventCells.length > 0;
+      // ROI base: capital when the month holds the scope's first recorded day
+      // (same rule as the period KPI), otherwise the month's opening balance.
+      const start = cells.length ? cells[0].start : 0;
+      const base = cells.length > 0 && cells[0].date <= firstEver && scopeCapital !== 0 ? scopeCapital : start;
+      out.push({
+        month: m,
+        label: format(new Date(year, m, 1), 'MMM').toUpperCase(),
+        pnl, flows, wins, losses,
+        tradingDays: wins + losses,
+        roi: hasData && base !== 0 ? roiOf(pnl, base) : null,
+        hasData,
+        isCurrent: year === new Date().getFullYear() && m === new Date().getMonth(),
+      });
+    }
+    return out;
+  }, [mergedSeries, anchor, scopeCapital]);
+
   // --- Calendar construction (Monday-first) ---
   const calendarCells = useMemo((): Array<{ key: string; date: Date | null }> => {
     if (timeframe === 'week') {
@@ -490,6 +529,54 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
       </button>
     );
   };
+
+  // --- Calendar rows + per-week totals (last column of the grid) ---
+  const CAL_GRID: React.CSSProperties = { gridTemplateColumns: 'repeat(7, minmax(0, 1fr)) minmax(54px, auto)' };
+  const calendarRows = useMemo(() => {
+    const rows: Array<Array<{ key: string; date: Date | null }>> = [];
+    for (let i = 0; i < calendarCells.length; i += 7) rows.push(calendarCells.slice(i, i + 7));
+    return rows;
+  }, [calendarCells]);
+
+  const weekTotalOf = (row: Array<{ key: string; date: Date | null }>) => {
+    let pnl = 0, flows = 0, hasData = false, base: number | null = null;
+    for (const c of row) {
+      if (!c.date) continue;
+      const cell = mergedSeries.get(dayKey(c.date));
+      if (!cell) continue;
+      if (base === null) base = cell.start;
+      pnl += cell.pnl;
+      flows += cell.flows;
+      if (cell.hasEvents) hasData = true;
+    }
+    return { pnl: r2(pnl), flows: r2(flows), hasData, base };
+  };
+
+  const weekTotalCell = (wt: { pnl: number; flows: number; hasData: boolean; base: number | null }) => (
+    <div
+      className={`min-h-[62px] sm:min-h-[74px] rounded-md border p-1.5 sm:p-2 text-right ${
+        wt.hasData
+          ? wt.pnl > 0 ? 'border-emerald-500/30 bg-emerald-500/[0.05]'
+            : wt.pnl < 0 ? 'border-rose-500/30 bg-rose-500/[0.05]'
+              : 'border-slate-800 bg-slate-900/60'
+          : 'border-transparent bg-slate-900/20 opacity-30'
+      }`}
+    >
+      {wt.hasData && (
+        <div className="mt-1 sm:mt-1.5 font-mono">
+          <div className={`text-[10px] sm:text-xs font-bold ${pnlCls(wt.pnl)}`}>
+            <span className="sm:hidden">{wt.pnl > 0 ? '+' : ''}{fmtC(wt.pnl)}</span>
+            <span className="hidden sm:inline">{wt.pnl > 0 ? '+' : ''}{fmt(wt.pnl)}</span>
+          </div>
+          {displayMode !== 'pnl' && wt.base !== null && wt.base !== 0 && (
+            <div className={`text-[9px] sm:text-[10px] ${pnlCls(wt.pnl)} opacity-80`}>
+              {roiOf(wt.pnl, wt.base) >= 0 ? '+' : ''}{roiOf(wt.pnl, wt.base).toFixed(2)}%
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   const tableRow = (dk: string) => {
     const c = mergedSeries.get(dk)!;
@@ -737,19 +824,95 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
 
       {/* ===== Body ===== */}
       <div className="p-3 md:p-4">
-        {(timeframe === 'month' || timeframe === 'week') && view === 'calendar' ? (
+        {timeframe === 'year' ? (
           <>
-            <div className="grid grid-cols-7 gap-1 sm:gap-1.5 mb-1 sm:mb-1.5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                {anchor.getFullYear()} · monthly performance
+              </p>
+              <p className="text-[10px] font-mono text-slate-600 hidden sm:block">tap a month to open its calendar</p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5 sm:gap-2">
+              {yearMonths.map(m => (
+                <button
+                  key={m.month}
+                  onClick={() => { setAnchor(new Date(anchor.getFullYear(), m.month, 1)); setTimeframe('month'); setView('calendar'); }}
+                  disabled={!m.hasData}
+                  className={`rounded-lg border p-2.5 sm:p-3 text-left transition-all ${
+                    !m.hasData
+                      ? 'border-dashed border-slate-800/60 bg-slate-900/20 opacity-40 cursor-default'
+                      : m.pnl > 0
+                        ? 'border-emerald-500/30 bg-emerald-500/[0.05] hover:border-emerald-400/60'
+                        : m.pnl < 0
+                          ? 'border-rose-500/30 bg-rose-500/[0.05] hover:border-rose-400/60'
+                          : 'border-slate-800 bg-slate-900/60 hover:border-slate-600'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{m.label}</span>
+                    {m.isCurrent && (
+                      <span className="text-[8px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-slate-700 text-white">Today</span>
+                    )}
+                  </div>
+                  {m.hasData ? (
+                    <>
+                      <div className="mt-1 font-mono">
+                        <div className={`text-sm sm:text-base font-bold ${pnlCls(m.pnl)}`}>
+                          <span className="sm:hidden">{m.pnl > 0 ? '+' : ''}{fmtC(m.pnl)}</span>
+                          <span className="hidden sm:inline">{m.pnl > 0 ? '+' : ''}{fmt(m.pnl)}</span>
+                        </div>
+                        {m.roi !== null && (
+                          <div className={`text-[10px] ${pnlCls(m.pnl)} opacity-80`}>
+                            {m.roi >= 0 ? '+' : ''}{m.roi.toFixed(2)}%
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-1.5 flex items-center justify-between gap-1 text-[10px] font-mono">
+                        <span className="text-slate-500">
+                          {m.tradingDays > 0 ? (
+                            <>
+                              <span className="text-emerald-400">{m.wins}W</span>
+                              <span className="text-slate-600"> / </span>
+                              <span className="text-rose-400">{m.losses}L</span>
+                            </>
+                          ) : '—'}
+                        </span>
+                        {m.flows !== 0 && (
+                          <span
+                            className={m.flows > 0 ? 'text-sky-400' : 'text-amber-400'}
+                            title="Net deposits − withdrawals"
+                          >
+                            {m.flows > 0 ? '+' : '−'}{fmtC(Math.abs(m.flows))}
+                          </span>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="mt-1 text-[10px] font-mono text-slate-600">No activity</p>
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (timeframe === 'month' || timeframe === 'week') && view === 'calendar' ? (
+          <>
+            <div className="grid gap-1 sm:gap-1.5 mb-1 sm:mb-1.5" style={CAL_GRID}>
               {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
                 <div key={d} className="text-center text-[9px] font-bold uppercase tracking-widest text-slate-600 py-1">
                   <span className="sm:hidden">{d[0]}</span>
                   <span className="hidden sm:inline">{d}</span>
                 </div>
               ))}
+              <div className="text-center text-[9px] font-bold uppercase tracking-widest text-slate-500 py-1">
+                Total
+              </div>
             </div>
-            <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
-              {calendarCells.map(c => dayTile(c.date, c.key))}
-            </div>
+            {calendarRows.map((row, i) => (
+              <div key={row[0]?.key || i} className="grid gap-1 sm:gap-1.5 mb-1 sm:mb-1.5" style={CAL_GRID}>
+                {row.map(c => dayTile(c.date, c.key))}
+                {weekTotalCell(weekTotalOf(row))}
+              </div>
+            ))}
           </>
         ) : (
           <div className="border border-slate-800/80 rounded-lg overflow-hidden">
