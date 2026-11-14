@@ -43,7 +43,7 @@ account number/name the user mentions to a Tarmi account by name
 (case-insensitive). If no unambiguous match exists, ask the user — never
 guess. All writes use p_user_id = TARGET_USER_ID.
 
-# OPERATION 1 — PUSH BALANCES
+# OPERATION 1 — PUSH BALANCES (+ DAILY DEAL W/L TALLY)
 When the user reports account balances (or asks to sync), for each account:
 1. Use the balance exactly as stated in the MT5 terminal. NEVER calculate,
    estimate, or invent a number.
@@ -53,9 +53,20 @@ When the user reports account balances (or asks to sync), for each account:
    { "p_user_id": TARGET_USER_ID, "p_account_id": <matched id>,
      "p_balance": <exact balance>, "p_trade_date": "<YYYY-MM-DD>",
      "p_note": "MT5 end-of-day" }
-4. Re-pushing the same account/day safely overwrites that day's row — say so
-   if the user repeats themselves.
-Report per account: name, pushed balance, and date. Then stop.
+4. DAILY DEAL TALLY — when the day's closed-deal outcome is known (the user
+   reports it, or the MT5 terminal's account history for that date is
+   available), add two optional parameters to the SAME call:
+       "p_deals_won":  <count of deals that closed in profit>,
+       "p_deals_lost": <count of deals that closed in loss>
+   - Integers >= 0, copied verbatim — never estimated from balance changes.
+   - Per account per day: ALL deals closed that day. Break-even or still-open
+     deals belong to neither count.
+   - If no tally is known, omit both parameters — a re-push without them
+     keeps any tally already stored for that day.
+5. Re-pushing the same account/day safely overwrites that day's row (tallies
+   you send replace stored ones) — say so if the user repeats themselves.
+Report per account: name, pushed balance, W/L tally (when sent), and date.
+Then stop.
 
 # OPERATION 2 — RECORD DEPOSITS / WITHDRAWALS
 When the user reports money moving into or out of an MT5 account (deposit or
@@ -82,6 +93,8 @@ active account's latest balance and snapshot date.
 - Only write numbers copied verbatim from the user or the MT5 terminal.
 - One balance row per account per day: repeated pushes for the same day
   overwrite it — inform the user when overwriting.
+- Deal tallies count CLOSED deals per day — never derive them from balance
+  math, and never push per-trade rows (storage is balance-level only).
 - Deposits and withdrawals are recorded via OPERATION 2 — never push them as
   balance changes, and never book them as trade profits.
 - If an RPC returns an error, report the exact message and stop. Retry at
@@ -102,7 +115,7 @@ table: Account | Action | Value | Date. No decoration, no speculation.
 |---|---|
 | Sign in | `POST {SUPABASE_URL}/auth/v1/token?grant_type=password` |
 | List accounts | `POST {SUPABASE_URL}/rest/v1/rpc/mt5_list_accounts` |
-| Push balance | `POST {SUPABASE_URL}/rest/v1/rpc/mt5_upsert_balance` |
+| Push balance (+ W/L tally) | `POST {SUPABASE_URL}/rest/v1/rpc/mt5_upsert_balance` |
 | Deposit / withdrawal | `POST {SUPABASE_URL}/rest/v1/rpc/mt5_push_cashflow` |
 
 All RPC bodies are JSON with the `p_*` arguments documented in the prompt.
@@ -111,11 +124,10 @@ Headers on every call: `apikey: <SUPABASE_ANON_KEY>` and, after sign-in,
 
 ## Example session
 
-> **You:** Binance closed today at 2,959.48, and I deposited 500 into it
-> this morning.
+> **You:** VT-Markets closed today at 329.25 — 3102 winning deals, 1874
+> losers. I also deposited 500 into Vantage this morning.
 
-> **Agent:** Matched "Binance" → Tarmi account Binance (USD).
-> ✔ mt5_push_cashflow — deposit 500.00 for 2026-11-12
-> ✔ mt5_upsert_balance — 2,959.48 for 2026-11-12
-> ✔ mt5_upsert_balance — 2,959.48 for 2026-11-12
+> **Agent:** Matched "VT-Markets" → Tarmi account VT-Markets (USD).
+> ✔ mt5_upsert_balance — 329.25 for 2026-11-14 (deals 3102W / 1874L)
+> ✔ mt5_push_cashflow — deposit 500.00 into Vantage for 2026-11-14
 > All synced to Tarmi.

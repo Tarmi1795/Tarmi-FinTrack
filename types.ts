@@ -249,6 +249,8 @@ export interface TradingSnapshot {
   snap_date: string; // YYYY-MM-DD
   fx_rate?: number;
   note?: string;
+  deals_won?: number | null; // MT5 closed deals that won this day (agent-pushed)
+  deals_lost?: number | null; // MT5 closed deals that lost this day (agent-pushed)
   created_at?: string;
 }
 

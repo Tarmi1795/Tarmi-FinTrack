@@ -24,6 +24,9 @@ interface DayCell {
   flows: number;
   isInit: boolean;   // first recorded day of the scope
   hasEvents: boolean; // a snapshot or money movement happened this day
+  won: number;        // MT5 winning deals this day (sum across accounts, 0 when untallied)
+  lost: number;       // MT5 losing deals this day
+  hasTally: boolean;  // any account pushed an MT5 W/L tally for this day
 }
 
 type Scope = 'portfolio' | string;
@@ -89,7 +92,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
   // an account stops pushing snapshots.
   const seriesByAccount = useMemo(() => {
     const out: Record<string, {
-      events: Map<string, { pnl: number; flows: number; hasSnapshot: boolean; isInit: boolean }>;
+      events: Map<string, { pnl: number; flows: number; hasSnapshot: boolean; isInit: boolean; won: number | null; lost: number | null }>;
       balances: Array<{ date: string; close: number }>;
       flowsByDate: Map<string, number>;
       firstDate: string | null;
@@ -107,7 +110,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
         ...flowsByDate.keys(),
       ])).sort();
 
-      const events = new Map<string, { pnl: number; flows: number; hasSnapshot: boolean; isInit: boolean }>();
+      const events = new Map<string, { pnl: number; flows: number; hasSnapshot: boolean; isInit: boolean; won: number | null; lost: number | null }>();
       const balances: Array<{ date: string; close: number }> = [];
       let prevClose: number | null = null;
       for (const d of dates) {
@@ -116,13 +119,17 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
         const isInit = prevClose === null;
         let close: number;
         let pnl = 0;
+        let won: number | null = null;
+        let lost: number | null = null;
         if (snap) {
           close = Number(snap.balance);
           pnl = isInit ? r2(close - flowsD) : r2(close - prevClose - flowsD);
+          won = snap.deals_won != null ? Number(snap.deals_won) : null;
+          lost = snap.deals_lost != null ? Number(snap.deals_lost) : null;
         } else {
           close = r2((prevClose ?? 0) + flowsD);
         }
-        events.set(d, { pnl, flows: flowsD, hasSnapshot: !!snap, isInit });
+        events.set(d, { pnl, flows: flowsD, hasSnapshot: !!snap, isInit, won, lost });
         balances.push({ date: d, close });
         prevClose = close;
       }
@@ -149,7 +156,7 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
 
     let prevTotal: number | null = null;
     for (const d of allDates) {
-      let closeSum = 0, flowsSum = 0, pnlSum = 0, hasEvents = false;
+      let closeSum = 0, flowsSum = 0, pnlSum = 0, wonSum = 0, lostSum = 0, hasEvents = false, hasTally = false;
       for (const acc of inScope) {
         const s = seriesByAccount[acc.id];
         if (!s) continue;
@@ -168,6 +175,11 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
           flowsSum += ev.flows * rate;
           pnlSum += ev.pnl * rate;
           if (ev.hasSnapshot || ev.flows !== 0) hasEvents = true;
+          if (ev.won !== null || ev.lost !== null) {
+            wonSum += ev.won ?? 0;
+            lostSum += ev.lost ?? 0;
+            hasTally = true;
+          }
         }
       }
       const start = prevTotal === null ? r2(closeSum - pnlSum - flowsSum) : prevTotal;
@@ -179,6 +191,9 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
         flows: flowsSum,
         isInit: prevTotal === null,
         hasEvents,
+        won: wonSum,
+        lost: lostSum,
+        hasTally,
       });
       prevTotal = closeSum;
     }
@@ -222,13 +237,23 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
     rangeDays.filter(d => mergedSeries.get(d)?.hasEvents)
   , [rangeDays, mergedSeries]);
 
-  // --- Win/loss session counts for the active range (week/month/year).
-  // Day-level sessions — per-trade history is deliberately not stored. ---
+  // --- Win/loss counts for the active range (week/month/year).
+  // MT5 deal tallies (agent-pushed, per day) when any exist in the range;
+  // otherwise day-level session counts. Per-trade history is not stored. ---
   const rangeWL = useMemo(() => {
     const cells = activeDays.map(d => mergedSeries.get(d)!);
+    const tallyDays = cells.filter(c => c.hasTally);
+    if (tallyDays.length > 0) {
+      return {
+        wins: tallyDays.reduce((s, c) => s + c.won, 0),
+        losses: tallyDays.reduce((s, c) => s + c.lost, 0),
+        source: 'mt5' as const,
+      };
+    }
     return {
       wins: cells.filter(c => c.pnl > 0).length,
       losses: cells.filter(c => c.pnl < 0).length,
+      source: 'sessions' as const,
     };
   }, [activeDays, mergedSeries]);
 
@@ -265,17 +290,22 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
     const monthDays = Array.from(mergedSeries.entries())
       .filter(([d]) => d.startsWith(monthPrefix))
       .map(([, c]) => c);
-    const wins = monthDays.filter(c => c.pnl > 0);
-    const losses = monthDays.filter(c => c.pnl < 0);
+    const tallyDays = monthDays.filter(c => c.hasTally);
+    const wins = tallyDays.length > 0
+      ? tallyDays.reduce((s, c) => s + c.won, 0)
+      : monthDays.filter(c => c.pnl > 0).length;
+    const losses = tallyDays.length > 0
+      ? tallyDays.reduce((s, c) => s + c.lost, 0)
+      : monthDays.filter(c => c.pnl < 0).length;
     const pnl = r2(monthDays.reduce((s, c) => s + c.pnl, 0));
-    const tradingDays = wins.length + losses.length;
+    const tradingDays = wins + losses;
     const target = settings?.monthly_profit_target || 0;
     return {
       pnl,
-      wins: wins.length,
-      losses: losses.length,
+      wins,
+      losses,
       tradingDays,
-      winRate: tradingDays > 0 ? (wins.length / tradingDays) * 100 : 0,
+      winRate: tradingDays > 0 ? (wins / tradingDays) * 100 : 0,
       progress: target > 0 ? (pnl / target) * 100 : null,
       target,
     };
@@ -300,8 +330,13 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
       const eventCells = cells.filter(c => c.hasEvents);
       const pnl = r2(cells.reduce((s, c) => s + c.pnl, 0));
       const flows = r2(cells.reduce((s, c) => s + c.flows, 0));
-      const wins = eventCells.filter(c => c.pnl > 0).length;
-      const losses = eventCells.filter(c => c.pnl < 0).length;
+      const tallyDays = cells.filter(c => c.hasTally);
+      const wins = tallyDays.length > 0
+        ? tallyDays.reduce((s, c) => s + c.won, 0)
+        : eventCells.filter(c => c.pnl > 0).length;
+      const losses = tallyDays.length > 0
+        ? tallyDays.reduce((s, c) => s + c.lost, 0)
+        : eventCells.filter(c => c.pnl < 0).length;
       const hasData = eventCells.length > 0;
       // ROI base: capital when the month holds the scope's first recorded day
       // (same rule as the period KPI), otherwise the month's opening balance.
@@ -536,6 +571,13 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
             )}
           </div>
         )}
+        {cell && cell.hasTally && (cell.won > 0 || cell.lost > 0) && (
+          <div className="mt-0.5 font-mono text-[9px] leading-tight" title="MT5 closed deals — pushed by your agent">
+            <span className="text-emerald-400/90">{cell.won}W</span>
+            <span className="text-slate-600"> / </span>
+            <span className="text-rose-400/90">{cell.lost}L</span>
+          </div>
+        )}
       </button>
     );
   };
@@ -619,11 +661,13 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
 
   const kpiLabel = 'text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500';
 
-  // Win/loss counter chip — winning vs losing sessions of the active range
+  // Win/loss counter chip — MT5 deal tallies when pushed, session counts otherwise
   const wlChip = (
     <div
       className="font-mono text-xs px-2 py-1 rounded-md border border-slate-800 bg-slate-900/60 shrink-0"
-      title="Winning vs losing sessions — counted per recorded day, no trade history"
+      title={rangeWL.source === 'mt5'
+        ? 'Winning vs losing MT5 deals — daily tally pushed by your agent'
+        : 'Winning vs losing sessions — counted per recorded day (no MT5 tally pushed yet)'}
     >
       <span className="text-emerald-400 font-bold">{rangeWL.wins}W</span>
       <span className="text-slate-600"> / </span>
@@ -1062,12 +1106,13 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
         {inspectorDate && inspectorCell && (
           <div className="space-y-4">
             {/* Day summary */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 font-mono text-xs">
               {[
                 { label: 'Start balance', value: fmt(inspectorCell.start), cls: 'text-slate-300' },
                 { label: 'Deposit / WD', value: inspectorCell.flows === 0 ? '—' : (inspectorCell.flows > 0 ? '+' : '−') + fmt(Math.abs(inspectorCell.flows)), cls: inspectorCell.flows > 0 ? 'text-sky-400' : inspectorCell.flows < 0 ? 'text-amber-400' : 'text-slate-400' },
                 { label: 'Day P&L', value: (inspectorCell.pnl > 0 ? '+' : '') + fmt(inspectorCell.pnl), cls: pnlCls(inspectorCell.pnl) },
                 { label: 'Close balance', value: fmt(inspectorCell.close), cls: 'text-slate-200' },
+                { label: 'MT5 W/L', value: inspectorCell.hasTally ? `${inspectorCell.won}W / ${inspectorCell.lost}L` : '—', cls: 'text-slate-200' },
               ].map(s => (
                 <div key={s.label} className="bg-gray-900/70 border border-gray-800 rounded-lg p-2.5">
                   <p className="text-[9px] uppercase tracking-widest text-slate-600 font-bold">{s.label}</p>

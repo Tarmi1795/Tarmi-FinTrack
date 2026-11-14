@@ -49,9 +49,20 @@ POST {SUPABASE_URL}/rest/v1/rpc/mt5_upsert_balance
   "p_account_id": "<account uuid>",
   "p_balance": 2959.48,
   "p_trade_date": "2026-11-12",
-  "p_note": "MT5 end-of-day" }
+  "p_note": "MT5 end-of-day",
+  "p_deals_won": 3102,
+  "p_deals_lost": 1874 }
 ```
 Upserts the daily closing balance (one per account per day — safe to re-run).
+
+**Daily deal W/L tally (optional):** `p_deals_won` / `p_deals_lost` store the
+day's count of closed deals that finished in profit / in loss — two integers
+per account-day, no per-trade rows (safe for algorithms with thousands of
+deals per day). Counts come verbatim from the MT5 terminal's account history —
+never derived from balance math; break-even/open deals belong to neither
+count. Re-pushing without the tally parameters keeps any tally already stored
+for that day. The terminal renders the tally on day cards, the Day Journal,
+the W/L counters and the month cards.
 
 ### `mt5_push_cashflow`
 ```
@@ -90,6 +101,8 @@ await sb.rpc('mt5_upsert_balance', {
   p_balance: 2959.48,
   p_trade_date: '2026-11-12',
   p_note: 'MT5 end-of-day',
+  p_deals_won: 3102,   // optional daily deal tally
+  p_deals_lost: 1874,
 });
 ```
 
