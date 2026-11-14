@@ -222,6 +222,16 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
     rangeDays.filter(d => mergedSeries.get(d)?.hasEvents)
   , [rangeDays, mergedSeries]);
 
+  // --- Win/loss session counts for the active range (week/month/year).
+  // Day-level sessions — per-trade history is deliberately not stored. ---
+  const rangeWL = useMemo(() => {
+    const cells = activeDays.map(d => mergedSeries.get(d)!);
+    return {
+      wins: cells.filter(c => c.pnl > 0).length,
+      losses: cells.filter(c => c.pnl < 0).length,
+    };
+  }, [activeDays, mergedSeries]);
+
   // --- KPI values ---
   const allTime = useMemo(() => {
     const dates = Array.from(mergedSeries.keys()).sort();
@@ -606,6 +616,18 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
 
   const kpiLabel = 'text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500';
 
+  // Win/loss counter chip — winning vs losing sessions of the active range
+  const wlChip = (
+    <div
+      className="font-mono text-xs px-2 py-1 rounded-md border border-slate-800 bg-slate-900/60 shrink-0"
+      title="Winning vs losing sessions — counted per recorded day, no trade history"
+    >
+      <span className="text-emerald-400 font-bold">{rangeWL.wins}W</span>
+      <span className="text-slate-600"> / </span>
+      <span className="text-rose-400 font-bold">{rangeWL.losses}L</span>
+    </div>
+  );
+
   return (
     <div className="rounded-xl border border-slate-800/80 bg-slate-950/60 overflow-hidden">
       {/* ===== KPI banner — swipe carousel on mobile, 3-col grid on md+ ===== */}
@@ -830,7 +852,10 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
                 {anchor.getFullYear()} · monthly performance
               </p>
-              <p className="text-[10px] font-mono text-slate-600 hidden sm:block">tap a month to open its calendar</p>
+              <div className="flex items-center gap-2">
+                {wlChip}
+                <p className="text-[10px] font-mono text-slate-600 hidden sm:block">tap a month to open its calendar</p>
+              </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5 sm:gap-2">
               {yearMonths.map(m => (
@@ -896,6 +921,9 @@ export const TradingTerminal: React.FC<TradingTerminalProps> = ({
           </>
         ) : (timeframe === 'month' || timeframe === 'week') && view === 'calendar' ? (
           <>
+            <div className="flex justify-end mb-1.5">
+              {wlChip}
+            </div>
             <div className="grid gap-1 sm:gap-1.5 mb-1 sm:mb-1.5" style={CAL_GRID}>
               {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
                 <div key={d} className="text-center text-[9px] font-bold uppercase tracking-widest text-slate-600 py-1">
